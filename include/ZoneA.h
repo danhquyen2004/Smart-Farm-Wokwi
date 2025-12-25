@@ -2,8 +2,9 @@
 #define ZONE_A_H
 
 #include <Arduino.h>
-#include <DHT.h>
 #include <Adafruit_NeoPixel.h>
+#include <Adafruit_PWMServoDriver.h>
+#include <DHT.h>
 #include <TFT_eSPI.h>
 
 // Plant profile structure
@@ -30,16 +31,18 @@ class ZoneA {
 private:
   // Hardware
   DHT* dht;
-  Adafruit_NeoPixel* ringFan;
   Adafruit_NeoPixel* ringHeat;
   Adafruit_NeoPixel* ringMist;
   Adafruit_NeoPixel* ringGrow;
+  // ringFan removed - using servo via PCA9685
+  
+  Adafruit_PWMServoDriver* pwm;  // Shared PCA9685 instance
   TFT_eSPI* tft;
   
   // Pins
   uint8_t pinDHT;
   uint8_t pinLDR;
-  uint8_t pinRingFan;
+  // pinRingFan removed - servo on PCA9685 ch4
   uint8_t pinRingHeat;
   uint8_t pinRingMist;
   uint8_t pinRingGrow;
@@ -59,8 +62,16 @@ private:
   bool growActive;
   
   // Simulation offsets for visual feedback
-  float simTempOffset;
-  float simHumOffset;
+  float simTempOffset = 0.0;
+  float simHumOffset = 0.0;
+  
+  // Previous raw sensor values (for change detection)
+  float prevRawTemp = 25.0;
+  float prevRawHum = 50.0;
+  
+  // Servo sweep animation
+  int servoFanPos = 90;     // Current position (0-180)
+  int servoFanDirection = 1; // 1 = forward, -1 = backward
   
   // Helper functions
   void updateSensors();
@@ -71,7 +82,7 @@ private:
   void updateDisplay(int yOffset);
   
 public:
-  ZoneA(TFT_eSPI* display);
+  ZoneA(TFT_eSPI* display, Adafruit_PWMServoDriver* pwmDriver);
   ~ZoneA();
   
   void begin();

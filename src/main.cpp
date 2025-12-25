@@ -1,10 +1,14 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <Adafruit_PWMServoDriver.h>
 #include "ZoneA.h"
 #include "ZoneB.h"
 
 // TFT display
 TFT_eSPI tft = TFT_eSPI();
+
+// PCA9685 servo driver (I2C address 0x40)
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // Zone instances
 ZoneA* zoneA = nullptr;
@@ -19,10 +23,15 @@ bool lastButtonState = HIGH;
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Nong Trai Thong Minh - 2 Zone Test");
+  Serial.println("Nong Trai Thong Minh - 2 Zone Hybrid");
   
   // Initialize button
   pinMode(PIN_BUTTON, INPUT_PULLUP);
+  
+  // Initialize PCA9685
+  pwm.begin();
+  pwm.setPWMFreq(50);  // Servo frequency: 50Hz
+  Serial.println("PCA9685 initialized");
   
   // Initialize TFT
   tft.init();
@@ -38,8 +47,8 @@ void setup() {
   tft.println("Khu B: Dat");
   delay(2000);
   
-  // Initialize Zone A
-  zoneA = new ZoneA(&tft);
+  // Initialize Zone A (with PCA9685 for servo)
+  zoneA = new ZoneA(&tft, &pwm);
   zoneA->begin();
   zoneA->setProfile(&PROFILE_LETTUCE);
   
@@ -85,5 +94,5 @@ void loop() {
   // Update Zone B below Zone A (yOffset = 106)
   zoneB->update(106);
   
-  delay(100); // Update at 10Hz
+  delay(15); // Update at 10Hz
 }

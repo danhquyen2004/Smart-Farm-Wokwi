@@ -57,18 +57,19 @@ PlantProfile PROFILE_STRAWBERRY = {
   300    // kMin
 };
 
-ZoneA::ZoneA(TFT_eSPI* display) {
+ZoneA::ZoneA(TFT_eSPI* display, Adafruit_PWMServoDriver* pwmDriver) {
   tft = display;
   dht = nullptr;
-  ringFan = nullptr;
+  // ringFan = nullptr;  // DISABLED - using servo via PCA9685
   ringHeat = nullptr;
   ringMist = nullptr;
   ringGrow = nullptr;
+  pwm = pwmDriver;  // Shared PCA9685 instance
   
   // Pin assignments from diagram.json
   pinDHT = 26;
   pinLDR = 34;
-  pinRingFan = 13;
+  // pinRingFan = 13;  // Now servo on PCA9685 channel 4
   pinRingHeat = 12;
   pinRingMist = 14;
   pinRingGrow = 27;
@@ -82,13 +83,16 @@ ZoneA::ZoneA(TFT_eSPI* display) {
   simTempOffset = 0.0;
   simHumOffset = 0.0;
   
+  prevRawTemp = 25.0;  // Initial guess
+  prevRawHum = 50.0;
+  
   // Default profile
   currentProfile = &PROFILE_LETTUCE;
 }
 
 ZoneA::~ZoneA() {
   if (dht) delete dht;
-  if (ringFan) delete ringFan;
+  // ringFan deleted - using servo
   if (ringHeat) delete ringHeat;
   if (ringMist) delete ringMist;
   if (ringGrow) delete ringGrow;
@@ -99,30 +103,33 @@ void ZoneA::begin() {
   dht = new DHT(pinDHT, DHT22);
   dht->begin();
   
-  // Initialize LED rings (12 pixels each)
-  ringFan = new Adafruit_NeoPixel(12, pinRingFan, NEO_GRB + NEO_KHZ800);
+  // Initialize LED rings (12 pixels each) - Fan is servo
+  // ringFan = new Adafruit_NeoPixel(12, pinRingFan, NEO_GRB + NEO_KHZ800);
   ringHeat = new Adafruit_NeoPixel(12, pinRingHeat, NEO_GRB + NEO_KHZ800);
   ringMist = new Adafruit_NeoPixel(12, pinRingMist, NEO_GRB + NEO_KHZ800);
   ringGrow = new Adafruit_NeoPixel(12, pinRingGrow, NEO_GRB + NEO_KHZ800);
   
-  ringFan->begin();
+  // ringFan->begin();
   ringHeat->begin();
   ringMist->begin();
   ringGrow->begin();
   
   // Turn off all rings
-  ringFan->clear();
+  // ringFan->clear();
   ringHeat->clear();
   ringMist->clear();
   ringGrow->clear();
   
-  ringFan->show();
+  // ringFan->show();
   ringHeat->show();
   ringMist->show();
   ringGrow->show();
   
   // LDR is analog input
   pinMode(pinLDR, INPUT);
+  
+  // PCA9685 already initialized in main, just ensure servo is stopped
+  pwm->setPWM(4, 0, 375);  // Channel 4 = Fan servo, 375 = stopped (90°)
 }
 
 void ZoneA::setProfile(PlantProfile* profile) {
@@ -130,45 +137,85 @@ void ZoneA::setProfile(PlantProfile* profile) {
 }
 
 void ZoneA::updateSensors() {
-  // Read temperature and humidity
+  // Read DHT22
   float rawTemp = dht->readTemperature();
   float rawHum = dht->readHumidity();
   
-  // Apply simulation offsets for visual feedback
-  if (!isnan(rawTemp)) {
-    temperature = rawTemp + simTempOffset;
+  if (!isnan(rawTemp) && !isnan(rawHum)) {
+    // Detect manual changes by comparing RAW values
+    float tempDelta = abs(rawTemp - prevRawTemp);
+    float humDelta = abs(rawHum - prevRawHum);
+    
+    if (tempDelta > 2.0) {
+      // Large RAW change = user adjusted DHT22 → instant response
+      simTempOffset = 0;
+      temperature = rawTemp;
+    } else {
+      // Small/no RAW change = apply simulation physics
+      temperature = rawTemp + simTempOffset;
+    }
+    
+    // Always update previous raw value
+    prevRawTemp = rawTemp;
+    
+    if (humDelta > 5.0) {
+      // Large RAW change = user adjusted DHT22 → instant response
+      simHumOffset = 0;
+      humidity = rawHum;
+    } else {
+      // Small/no RAW change = apply simulation physics
+      humidity = rawHum + simHumOffset;
+    }
+    
+    // Always update previous raw value
+    prevRawHum = rawHum;
   }
   
-  if (!isnan(rawHum)) {
-    humidity = rawHum + simHumOffset;
-    if (humidity > 100) humidity = 100;
-    if (humidity < 0) humidity = 0;
-  }
+  // Read LDR - always instant (potentiometer)
+  int ldrValue = analogRead(pinLDR);
+  lightLevel = map(ldrValue, 0, 4095, 100, 0);  // Inverted: high reading = bright
   
-  // Read light level (map to 0-100%)
-  int rawLDR = analogRead(pinLDR);
-  lightLevel = map(rawLDR, 0, 4095, 100, 0); // Invert: dark=0, bright=100
+  // Clamp values
+  if (temperature < 0) temperature = 0;
+  if (temperature > 60) temperature = 60;
+  if (humidity < 0) humidity = 0;
+  if (humidity > 100) humidity = 100;
+  if (lightLevel < 0) lightLevel = 0;
+  if (lightLevel > 100) lightLevel = 100;
 }
 
 void ZoneA::controlFan() {
-  // Cooling fan - activates when too hot
+  // Cooling fan servo - activates when too hot
   if (temperature > currentProfile->tempMax) {
     fanActive = true;
   } else if (temperature < currentProfile->tempMax - TEMP_HYSTERESIS) {
-    fanActive = false; // Hysteresis to prevent rapid cycling
+    fanActive = false;
   }
   
-  // Update LED ring
+  // Control servo via PCA9685 (channel 4)
   if (fanActive) {
-    // Cyan color for cooling fan
-    for (int i = 0; i < ringFan->numPixels(); i++) {
-      ringFan->setPixelColor(i, ringFan->Color(0, 255, 255)); // Cyan
+    // Sweep servo back and forth (0-180 degrees)
+    servoFanPos += servoFanDirection * 15;  // Move 15 degrees per update (faster & smoother)
+    
+    // Reverse direction at limits
+    if (servoFanPos >= 180) {
+      servoFanPos = 180;
+      servoFanDirection = -1;
+    } else if (servoFanPos <= 0) {
+      servoFanPos = 0;
+      servoFanDirection = 1;
     }
     
-    // Simulate cooling effect
+    // Map position to PWM pulse (150=0deg, 600=180deg)
+    int pulseWidth = map(servoFanPos, 0, 180, 150, 600);
+    pwm->setPWM(4, 0, pulseWidth);
+    
+    // Simulate cooling effect (gradual)
     simTempOffset -= TEMP_COOLING_RATE;
   } else {
-    ringFan->clear();
+    // Servo stopped at center
+    servoFanPos = 90;
+    pwm->setPWM(4, 0, 375);  // Mid position
     
     // Natural temperature recovery
     if (simTempOffset < -0.1) {
@@ -177,8 +224,6 @@ void ZoneA::controlFan() {
       simTempOffset = 0;
     }
   }
-  
-  ringFan->show();
 }
 
 void ZoneA::controlHeat() {
@@ -191,16 +236,13 @@ void ZoneA::controlHeat() {
   
   // Update LED ring
   if (heatActive) {
-    // Red color for heater
     for (int i = 0; i < ringHeat->numPixels(); i++) {
       ringHeat->setPixelColor(i, ringHeat->Color(255, 0, 0)); // Red
     }
-    
-    // Simulate heating effect
+    // Simulate heating effect (gradual)
     simTempOffset += TEMP_HEATING_RATE;
   } else {
     ringHeat->clear();
-    
     // Natural temperature recovery
     if (simTempOffset > 0.1) {
       simTempOffset -= TEMP_RECOVERY_RATE;
@@ -208,7 +250,6 @@ void ZoneA::controlHeat() {
       simTempOffset = 0;
     }
   }
-  
   ringHeat->show();
 }
 
@@ -222,16 +263,13 @@ void ZoneA::controlMist() {
   
   // Update LED ring
   if (mistActive) {
-    // Cyan color for mist
     for (int i = 0; i < ringMist->numPixels(); i++) {
       ringMist->setPixelColor(i, ringMist->Color(0, 255, 255)); // Cyan
     }
-    
-    // Simulate humidifying effect
+    // Simulate humidifying effect (gradual)
     simHumOffset += HUM_INCREASE_RATE;
   } else {
     ringMist->clear();
-    
     // Natural humidity decrease
     if (simHumOffset > 0.1) {
       simHumOffset -= HUM_DECREASE_RATE;
@@ -239,7 +277,6 @@ void ZoneA::controlMist() {
       simHumOffset = 0;
     }
   }
-  
   ringMist->show();
 }
 
