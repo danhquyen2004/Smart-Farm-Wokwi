@@ -1,96 +1,89 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include "SmartZone.h"
-#include "PlantProfile.h"
+#include "ZoneA.h"
+#include "ZoneB.h"
 
-// MODE button
-#define PIN_MODE_BUTTON 0 // Boot button
-
-// Global objects
+// TFT display
 TFT_eSPI tft = TFT_eSPI();
-PlantProfile currentProfile = PROFILE_LETTUCE;
-ProfileThresholds thresholds;
 
-// Three zones
-SmartZone* zoneA = nullptr;
-SmartZone* zoneB = nullptr;
-SmartZone* zoneC = nullptr;
+// Zone instances
+ZoneA* zoneA = nullptr;
+ZoneB* zoneB = nullptr;
 
-// Button state
+// Button for profile switching
+const int PIN_BUTTON = 0;  // MODE button from diagram.json
+int currentProfileIndex = 0;
+PlantProfile* profiles[] = { &PROFILE_LETTUCE, &PROFILE_MELON, &PROFILE_STRAWBERRY };
+const char* profileNames[] = { "XA LACH", "DUA LUOI", "DAU TAY" };
 bool lastButtonState = HIGH;
-unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 200;
-
-void switchProfile() {
-  // Cycle through profiles
-  switch(currentProfile) {
-    case PROFILE_LETTUCE: currentProfile = PROFILE_MELON; break;
-    case PROFILE_MELON: currentProfile = PROFILE_STRAWBERRY; break;
-    case PROFILE_STRAWBERRY: currentProfile = PROFILE_LETTUCE; break;
-  }
-  
-  loadProfileThresholds(currentProfile, thresholds);
-  
-  // Update all zones
-  zoneA->updateProfile(&currentProfile, &thresholds);
-  zoneB->updateProfile(&currentProfile, &thresholds);
-  zoneC->updateProfile(&currentProfile, &thresholds);
-  
-  // Clear screen to redraw new profile name
-  tft.fillScreen(TFT_BLACK);
-}
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("Nong Trai Thong Minh - 2 Zone Test");
   
-  // Pass TFT to SmartZone class
-  SmartZone::setTFT(&tft);
+  // Initialize button
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
   
-  // Setup MODE button
-  pinMode(PIN_MODE_BUTTON, INPUT_PULLUP);
-  
-  // Load default profile
-  loadProfileThresholds(currentProfile, thresholds);
-  
-  // Initialize Zones EARLY to reset Servos immediately
-  zoneA = new SmartZone(1, ZONE_AIR, &currentProfile, &thresholds);
-  zoneA->begin();
-  
-  zoneB = new SmartZone(2, ZONE_SOIL, &currentProfile, &thresholds);
-  zoneB->begin();
-  
-  zoneC = new SmartZone(3, ZONE_HYDRO, &currentProfile, &thresholds);
-  zoneC->begin();
-  
-  // Initialize TFT Display
+  // Initialize TFT
   tft.init();
-  tft.setRotation(0); // Portrait
+  tft.setRotation(0); // Portrait (dọc)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextSize(2);
+  tft.setTextSize(1);
+  
+  // Startup message
   tft.setCursor(10, 10);
-  tft.println("SMART FARM SYSTEM");
-  tft.println("Initializing...");
-  delay(1000); // Now servos are already reset during this delay
+  tft.println("Khoi dong he thong...");
+  tft.println("Khu A: Khong khi");
+  tft.println("Khu B: Dat");
+  delay(2000);
+  
+  // Initialize Zone A
+  zoneA = new ZoneA(&tft);
+  zoneA->begin();
+  zoneA->setProfile(&PROFILE_LETTUCE);
+  
+  // Initialize Zone B
+  zoneB = new ZoneB(&tft);
+  zoneB->begin();
+  zoneB->setProfile(&PROFILE_LETTUCE);
+  
   tft.fillScreen(TFT_BLACK);
+  
+  Serial.println("He thong san sang!");
+  Serial.println("Bam nut MODE de thay doi cay trong");
 }
 
 void loop() {
-  // Check MODE button
-  bool buttonState = digitalRead(PIN_MODE_BUTTON);
+  // Check button for profile switching
+  bool buttonState = digitalRead(PIN_BUTTON);
+  
   if (buttonState == LOW && lastButtonState == HIGH) {
-    unsigned long currentTime = millis();
-    if (currentTime - lastDebounceTime > debounceDelay) {
-      switchProfile();
-      lastDebounceTime = currentTime;
-    }
+    // Button pressed - switch profile for BOTH zones
+    currentProfileIndex = (currentProfileIndex + 1) % 3;
+    zoneA->setProfile(profiles[currentProfileIndex]);
+    zoneB->setProfile(profiles[currentProfileIndex]);
+    
+    // Show profile change message
+    tft.fillRect(0, 150, 240, 20, TFT_BLUE);
+    tft.setTextColor(TFT_WHITE, TFT_BLUE);
+    tft.drawString("CAY: ", 10, 155, 1);
+    tft.drawString(profileNames[currentProfileIndex], 50, 155, 1);
+    
+    Serial.print("Doi sang cay: ");
+    Serial.println(profileNames[currentProfileIndex]);
+    
+    delay(1000); // Debounce and show message
+    tft.fillRect(0, 150, 240, 20, TFT_BLACK); // Clear message
   }
+  
   lastButtonState = buttonState;
   
-  // Run all zones
-  if (zoneA) zoneA->run();
-  if (zoneB) zoneB->run();
-  if (zoneC) zoneC->run();
+  // Update Zone A at top (yOffset = 0)
+  zoneA->update(0);
   
-  delay(200); // UI Refresh rate
+  // Update Zone B below Zone A (yOffset = 106)
+  zoneB->update(106);
+  
+  delay(100); // Update at 10Hz
 }
