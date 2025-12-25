@@ -52,8 +52,8 @@ void setup() {
   zoneA->begin();
   zoneA->setProfile(&PROFILE_LETTUCE);
   
-  // Initialize Zone B
-  zoneB = new ZoneB(&tft);
+  // Initialize Zone B (with PCA9685 for servos)
+  zoneB = new ZoneB(&tft, &pwm);
   zoneB->begin();
   zoneB->setProfile(&PROFILE_LETTUCE);
   

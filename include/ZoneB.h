@@ -2,7 +2,7 @@
 #define ZONE_B_H
 
 #include <Arduino.h>
-#include <Adafruit_NeoPixel.h>
+#include <Adafruit_PWMServoDriver.h>
 #include <TFT_eSPI.h>
 
 // Forward declaration
@@ -11,10 +11,7 @@ struct PlantProfile;
 class ZoneB {
 private:
   // Hardware
-  Adafruit_NeoPixel* ringWater;
-  Adafruit_NeoPixel* ringN;
-  Adafruit_NeoPixel* ringP;
-  Adafruit_NeoPixel* ringK;
+  Adafruit_PWMServoDriver* pwm;  // Shared PCA9685 instance
   TFT_eSPI* tft;
   
   // Pins
@@ -23,10 +20,6 @@ private:
   uint8_t pinPotN;
   uint8_t pinPotP;
   uint8_t pinPotK;
-  uint8_t pinRingWater;
-  uint8_t pinRingN;
-  uint8_t pinRingP;
-  uint8_t pinRingK;
   uint8_t pinBuzzer;
   
   // Current profile
@@ -47,10 +40,26 @@ private:
   bool alarmActive;
   
   // Simulation offsets
-  float simMoistOffset;
-  float simNOffset;
-  float simPOffset;
-  float simKOffset;
+  float simMoistOffset = 0.0;
+  float simNOffset = 0.0;
+  float simPOffset = 0.0;
+  float simKOffset = 0.0;
+  
+  // Previous raw sensor values (for instant detection)
+  int prevRawMoist = 50;
+  int prevRawN = 300;
+  int prevRawP = 200;
+  int prevRawK = 250;
+  
+  // Servo sweep animations (PCA9685 channels 0-3)
+  int servoWaterPos = 90;
+  int servoWaterDir = 1;
+  int servoNPos = 90;
+  int servoNDir = 1;
+  int servoPPos = 90;
+  int servoPDir = 1;
+  int servoKPos = 90;
+  int servoKDir = 1;
   
   // Helper functions
   void updateSensors();
@@ -60,7 +69,7 @@ private:
   void updateDisplay(int yOffset);
   
 public:
-  ZoneB(TFT_eSPI* display);
+  ZoneB(TFT_eSPI* display, Adafruit_PWMServoDriver* pwmDriver);
   ~ZoneB();
   
   void begin();

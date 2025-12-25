@@ -22,12 +22,9 @@ const float PH_MAX_ALARM = 8.0f;
 
 // ============================================================
 
-ZoneB::ZoneB(TFT_eSPI* display) {
+ZoneB::ZoneB(TFT_eSPI* display, Adafruit_PWMServoDriver* pwmDriver) {
   tft = display;
-  ringWater = nullptr;
-  ringN = nullptr;
-  ringP = nullptr;
-  ringK = nullptr;
+  pwm = pwmDriver;
   
   // Pin assignments from diagram.json
   pinPotMoist = 36;  // VP
@@ -35,10 +32,6 @@ ZoneB::ZoneB(TFT_eSPI* display) {
   pinPotN = 39;      // VN
   pinPotP = 35;
   pinPotK = 25;
-  pinRingWater = 16; // RX2
-  pinRingN = 17;     // TX2
-  pinRingP = 5;
-  pinRingK = 1;      // TX0
   pinBuzzer = 3;     // RX0
   
   // Initialize states
@@ -53,42 +46,31 @@ ZoneB::ZoneB(TFT_eSPI* display) {
   simPOffset = 0.0;
   simKOffset = 0.0;
   
+  prevRawMoist = 50;
+  prevRawN = 300;
+  prevRawP = 200;
+  prevRawK = 250;
+  
   currentProfile = &PROFILE_LETTUCE;
 }
 
 ZoneB::~ZoneB() {
-  if (ringWater) delete ringWater;
-  if (ringN) delete ringN;
-  if (ringP) delete ringP;
-  if (ringK) delete ringK;
+  // No LED rings to delete - servos controlled via PCA9685
 }
 
 void ZoneB::begin() {
-  // Initialize LED rings (12 pixels each)
-  ringWater = new Adafruit_NeoPixel(12, pinRingWater, NEO_GRB + NEO_KHZ800);
-  ringN = new Adafruit_NeoPixel(12, pinRingN, NEO_GRB + NEO_KHZ800);
-  ringP = new Adafruit_NeoPixel(12, pinRingP, NEO_GRB + NEO_KHZ800);
-  ringK = new Adafruit_NeoPixel(12, pinRingK, NEO_GRB + NEO_KHZ800);
-  
-  ringWater->begin();
-  ringN->begin();
-  ringP->begin();
-  ringK->begin();
-  
-  // Turn off all rings
-  ringWater->clear();
-  ringN->clear();
-  ringP->clear();
-  ringK->clear();
-  
-  ringWater->show();
-  ringN->show();
-  ringP->show();
-  ringK->show();
+  // No LED rings - using servos via PCA9685
+  // Servos already initialized in main.cpp
   
   // Buzzer output
   pinMode(pinBuzzer, OUTPUT);
   digitalWrite(pinBuzzer, LOW);
+  
+  // Stop all servos initially (center position)
+  pwm->setPWM(0, 0, 375);  // Water servo
+  pwm->setPWM(1, 0, 375);  // N servo
+  pwm->setPWM(2, 0, 375);  // P servo
+  pwm->setPWM(3, 0, 375);  // K servo
 }
 
 void ZoneB::setProfile(PlantProfile* profile) {
@@ -99,28 +81,60 @@ void ZoneB::updateSensors() {
   // Read soil moisture (0-100%)
   int rawMoist = analogRead(pinPotMoist);
   int baseMoist = map(rawMoist, 0, 4095, 0, 100);
-  soilMoisture = baseMoist + simMoistOffset;
+  
+  // Detect manual changes
+  int moistDelta = abs(rawMoist - prevRawMoist);
+  if (moistDelta > 200) {  // ~5% threshold
+    simMoistOffset = 0;
+    soilMoisture = baseMoist;
+  } else {
+    soilMoisture = baseMoist + simMoistOffset;
+  }
+  prevRawMoist = rawMoist;
+  
+  // Clamp
   if (soilMoisture > 100) soilMoisture = 100;
   if (soilMoisture < 0) soilMoisture = 0;
   
-  // Read soil pH (0-14, mapped from 0-140 for 0.1 precision)
+  // Read soil pH (0-14, instant - always direct reading)
   int rawPH = analogRead(pinPotPH);
   soilPH = map(rawPH, 0, 4095, 0, 140) / 10.0;
   
-  // Read NPK levels (0-500 mg/kg range)
+  // Read NPK levels (0-500 mg/kg) with instant detection
   int rawN = analogRead(pinPotN);
   int baseN = map(rawN, 0, 4095, 0, 500);
-  nitrogenLevel = baseN + simNOffset;
+  int nDelta = abs(rawN - prevRawN);
+  if (nDelta > 100) {  // ~12mg/kg threshold
+    simNOffset = 0;
+    nitrogenLevel = baseN;
+  } else {
+    nitrogenLevel = baseN + simNOffset;
+  }
+  prevRawN = rawN;
   if (nitrogenLevel < 0) nitrogenLevel = 0;
   
   int rawP = analogRead(pinPotP);
   int baseP = map(rawP, 0, 4095, 0, 500);
-  phosphorusLevel = baseP + simPOffset;
+  int pDelta = abs(rawP - prevRawP);
+  if (pDelta > 100) {
+    simPOffset = 0;
+    phosphorusLevel = baseP;
+  } else {
+    phosphorusLevel = baseP + simPOffset;
+  }
+  prevRawP = rawP;
   if (phosphorusLevel < 0) phosphorusLevel = 0;
   
   int rawK = analogRead(pinPotK);
   int baseK = map(rawK, 0, 4095, 0, 500);
-  potassiumLevel = baseK + simKOffset;
+  int kDelta = abs(rawK - prevRawK);
+  if (kDelta > 100) {
+    simKOffset = 0;
+    potassiumLevel = baseK;
+  } else {
+    potassiumLevel = baseK + simKOffset;
+  }
+  prevRawK = rawK;
   if (potassiumLevel < 0) potassiumLevel = 0;
 }
 
@@ -137,13 +151,10 @@ void ZoneB::checkAlarm() {
     pActive = false;
     kActive = false;
     
-    // Update LED rings
-    ringN->clear();
-    ringP->clear();
-    ringK->clear();
-    ringN->show();
-    ringP->show();
-    ringK->show();
+    // Stop all nutrient servos
+    pwm->setPWM(1, 0, 375);  // N servo center
+    pwm->setPWM(2, 0, 375);  // P servo center
+    pwm->setPWM(3, 0, 375);  // K servo center
     
   } else {
     if (alarmActive) {
@@ -161,17 +172,25 @@ void ZoneB::controlWater() {
     waterActive = false;
   }
   
-  // Update LED ring
+  // Control servo via PCA9685 (channel 0)
   if (waterActive) {
-    // Green color for water
-    for (int i = 0; i < ringWater->numPixels(); i++) {
-      ringWater->setPixelColor(i, ringWater->Color(0, 255, 0)); // Green
+    // Sweep servo for water pump
+    servoWaterPos += servoWaterDir * 15;
+    if (servoWaterPos >= 180) {
+      servoWaterPos = 180;
+      servoWaterDir = -1;
+    } else if (servoWaterPos <= 0) {
+      servoWaterPos = 0;
+      servoWaterDir = 1;
     }
+    pwm->setPWM(0, 0, map(servoWaterPos, 0, 180, 150, 600));
     
     // Simulate watering
     simMoistOffset += MOIST_INCREASE_RATE;
   } else {
-    ringWater->clear();
+    // Servo stopped
+    servoWaterPos = 90;
+    pwm->setPWM(0, 0, 375);
     
     // Natural drying
     if (simMoistOffset > 0.1) {
@@ -180,15 +199,13 @@ void ZoneB::controlWater() {
       simMoistOffset = 0;
     }
   }
-  
-  ringWater->show();
 }
 
 void ZoneB::controlNutrients() {
   // Skip if alarm active (safety lockout from detai.md)
   if (alarmActive) return;
   
-  // Nitrogen control
+  // Nitrogen control (PCA9685 channel 1)
   if (nitrogenLevel < currentProfile->nMin) {
     nActive = true;
   } else if (nitrogenLevel > currentProfile->nMin + NUTRIENT_HYSTERESIS) {
@@ -196,19 +213,24 @@ void ZoneB::controlNutrients() {
   }
   
   if (nActive) {
-    // Red color for Nitrogen
-    for (int i = 0; i < ringN->numPixels(); i++) {
-      ringN->setPixelColor(i, ringN->Color(255, 0, 0)); // Red
+    servoNPos += servoNDir * 15;
+    if (servoNPos >= 180) {
+      servoNPos = 180;
+      servoNDir = -1;
+    } else if (servoNPos <= 0) {
+      servoNPos = 0;
+      servoNDir = 1;
     }
+    pwm->setPWM(1, 0, map(servoNPos, 0, 180, 150, 600));
     simNOffset += NUTRIENT_INCREASE_RATE;
   } else {
-    ringN->clear();
+    servoNPos = 90;
+    pwm->setPWM(1, 0, 375);
     if (simNOffset > 0.1) simNOffset -= NUTRIENT_DECREASE_RATE;
     else if (simNOffset > 0) simNOffset = 0;
   }
-  ringN->show();
   
-  // Phosphorus control
+  // Phosphorus control (PCA9685 channel 2)
   if (phosphorusLevel < currentProfile->pMin) {
     pActive = true;
   } else if (phosphorusLevel > currentProfile->pMin + NUTRIENT_HYSTERESIS) {
@@ -216,19 +238,24 @@ void ZoneB::controlNutrients() {
   }
   
   if (pActive) {
-    // Yellow color for Phosphorus
-    for (int i = 0; i < ringP->numPixels(); i++) {
-      ringP->setPixelColor(i, ringP->Color(255, 255, 0)); // Yellow
+    servoPPos += servoPDir * 15;
+    if (servoPPos >= 180) {
+      servoPPos = 180;
+      servoPDir = -1;
+    } else if (servoPPos <= 0) {
+      servoPPos = 0;
+      servoPDir = 1;
     }
+    pwm->setPWM(2, 0, map(servoPPos, 0, 180, 150, 600));
     simPOffset += NUTRIENT_INCREASE_RATE;
   } else {
-    ringP->clear();
+    servoPPos = 90;
+    pwm->setPWM(2, 0, 375);
     if (simPOffset > 0.1) simPOffset -= NUTRIENT_DECREASE_RATE;
     else if (simPOffset > 0) simPOffset = 0;
   }
-  ringP->show();
   
-  // Potassium control
+  // Potassium control (PCA9685 channel 3)
   if (potassiumLevel < currentProfile->kMin) {
     kActive = true;
   } else if (potassiumLevel > currentProfile->kMin + NUTRIENT_HYSTERESIS) {
@@ -236,17 +263,22 @@ void ZoneB::controlNutrients() {
   }
   
   if (kActive) {
-    // Orange color for Potassium
-    for (int i = 0; i < ringK->numPixels(); i++) {
-      ringK->setPixelColor(i, ringK->Color(255, 128, 0)); // Orange
+    servoKPos += servoKDir * 15;
+    if (servoKPos >= 180) {
+      servoKPos = 180;
+      servoKDir = -1;
+    } else if (servoKPos <= 0) {
+      servoKPos = 0;
+      servoKDir = 1;
     }
+    pwm->setPWM(3, 0, map(servoKPos, 0, 180, 150, 600));
     simKOffset += NUTRIENT_INCREASE_RATE;
   } else {
-    ringK->clear();
+    servoKPos = 90;
+    pwm->setPWM(3, 0, 375);
     if (simKOffset > 0.1) simKOffset -= NUTRIENT_DECREASE_RATE;
     else if (simKOffset > 0) simKOffset = 0;
   }
-  ringK->show();
 }
 
 void ZoneB::updateDisplay(int yOffset) {
