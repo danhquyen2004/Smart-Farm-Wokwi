@@ -39,12 +39,9 @@
     { "type": "wokwi-buzzer", "id": "buzzer", "top": 950, "left": 450, "attrs": {} },
     
     { "type": "wokwi-text", "id": "lblZoneC", "top": 560, "left": 750, "attrs": { "text": "=== ZONE C: HYDRO ===" } },
-    { "type": "board-ds18b20", "id": "ds18b20", "top": 600, "left": 750, "attrs": {} },
     { "type": "wokwi-potentiometer", "id": "potEC", "top": 600, "left": 850, "attrs": {} },
     { "type": "wokwi-potentiometer", "id": "potpH_C", "top": 600, "left": 930, "attrs": {} },
-    { "type": "wokwi-led-ring", "id": "ringChiller", "top": 700, "left": 750, "attrs": { "pixels": "12" } },
-    { "type": "wokwi-text", "id": "lblChiller", "top": 790, "left": 755, "attrs": { "text": "Chiller" } },
-    { "type": "wokwi-led-ring", "id": "ringNutrient", "top": 700, "left": 850, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-servo", "id": "servoNutrient", "top": 700, "left": 850, "attrs": {} },
     { "type": "wokwi-text", "id": "lblNutrient", "top": 790, "left": 855, "attrs": { "text": "Nutrient" } }
   ],
   "connections": [
@@ -129,25 +126,18 @@
     ["buzzer:1", "esp:GND.2", "black", []],
     ["buzzer:2", "esp:RX0", "orange", []],
     
-    ["ds18b20:VCC", "esp:3V3", "red", []],
-    ["ds18b20:GND", "esp:GND.2", "black", []],
-    ["ds18b20:DQ", "esp:D16", "yellow", []],
     
-    ["potEC:SIG", "esp:D17", "green", []],
+    ["potEC:SIG", "esp:D4", "green", []],
     ["potEC:VCC", "esp:3V3", "red", []],
     ["potEC:GND", "esp:GND.2", "black", []],
     
-    ["potpH_C:SIG", "esp:D0", "green", []],
+    ["potpH_C:SIG", "esp:D33", "green", []],
     ["potpH_C:VCC", "esp:3V3", "red", []],
     ["potpH_C:GND", "esp:GND.2", "black", []],
     
-    ["ringChiller:DIN", "esp:D13", "blue", []],
-    ["ringChiller:VCC", "esp:VIN", "red", []],
-    ["ringChiller:GND", "esp:GND.2", "black", []],
-    
-    ["ringNutrient:DIN", "esp:D5", "white", []],
-    ["ringNutrient:VCC", "esp:VIN", "red", []],
-    ["ringNutrient:GND", "esp:GND.2", "black", []]
+    ["servoNutrient:PWM", "pca9685:LED6", "white", []],
+    ["servoNutrient:V+", "esp:VIN", "red", []],
+    ["servoNutrient:GND", "esp:GND.1", "black", []]
   ],
   "dependencies": {
     "chip-pca9685": "github:bonnyr/wokwi-pca9685-custom-chip@0.1.1"

@@ -2,10 +2,8 @@
 #define ZONE_C_H
 
 #include <Arduino.h>
-#include <Adafruit_NeoPixel.h>
+#include <Adafruit_PWMServoDriver.h>
 #include <TFT_eSPI.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
 
 // Forward declaration
 struct PlantProfile;
@@ -13,43 +11,40 @@ struct PlantProfile;
 class ZoneC {
 private:
   // Hardware
-  OneWire* oneWire;
-  DallasTemperature* ds18b20;
-  Adafruit_NeoPixel* ringChiller;
-  Adafruit_NeoPixel* ringNutrient;
+  Adafruit_PWMServoDriver* pwm;  // Shared PCA9685
   TFT_eSPI* tft;
   
   // Pins
-  uint8_t pinDS18B20;
   uint8_t pinPotEC;
-  uint8_t pinPotPH;
-  uint8_t pinRingChiller;
-  uint8_t pinRingNutrient;
+  uint8_t pinPotPH;  // Only EC and pH (no temp)
   
   // Current profile
   PlantProfile* currentProfile;
   
   // Sensor readings
-  float waterTemp;
   float hydroEC;
-  float hydroPH;
+  float hydroPH;  // No water temp
   
   // Control states
-  bool chillerActive;
-  bool nutrientActive;
+  bool nutrientActive;  // Only nutrient pump (no chiller)
   
   // Simulation offsets
-  float simTempOffset;
-  float simECOffset;
+  float simECOffset = 0.0;  // Only EC simulation
+  
+  // Previous raw sensor values (for instant detection)
+  int prevRawEC = 1500;  // Only EC tracking
+  
+  // Servo sweep animation (PCA9685 channel 6 only)
+  int servoNutrientPos = 90;
+  int servoNutrientDir = 1;  // No chiller servo
   
   // Helper functions
   void updateSensors();
-  void controlChiller();
-  void controlNutrient();
+  void controlNutrient();  // Only nutrient (no chiller)
   void updateDisplay(int yOffset);
   
 public:
-  ZoneC(TFT_eSPI* display);
+  ZoneC(TFT_eSPI* display, Adafruit_PWMServoDriver* pwmDriver);
   ~ZoneC();
   
   void begin();
@@ -57,9 +52,8 @@ public:
   void update(int displayYOffset = 0);
   
   // Getters
-  float getWaterTemp() { return waterTemp; }
   float getHydroEC() { return hydroEC; }
-  float getHydroPH() { return hydroPH; }
+  float getHydroPH() { return hydroPH; }  // No water temp getter
 };
 
 #endif
