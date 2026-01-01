@@ -1,145 +1,243 @@
 {
   "version": 1,
-  "author": "Smart Farm 3-Zone Hybrid (PCA9685)",
-  "editor": "wok woke",
+  "author": "Smart Farm v2.3 - Shared Environment Edition",
+  "editor": "wokwi",
   "parts": [
-    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 500, "attrs": {} },
-    { "type": "wokwi-pushbutton", "id": "btnMode", "top": 150, "left": 700, "attrs": { "color": "blue", "label": "MODE" } },
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 450, "attrs": {} },
     
-    { "type": "wokwi-ili9341", "id": "tft", "top": 250, "left": 450, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblTitle", "top": -30, "left": 350, "attrs": { "text": "=== SMART FARM v2.3 - Shared Sensors ===" } },
     
-    { "type": "chip-pca9685", "id": "pca9685", "top": 150, "left": 200, "attrs": {} },
+    { "type": "board-ssd1306", "id": "oledMain", "top": 0, "left": 1150, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblOled", "top": -30, "left": 1150, "attrs": { "text": "System Monitor (OLED)" } },
     
-    { "type": "wokwi-text", "id": "lblZoneA", "top": 560, "left": 0, "attrs": { "text": "=== ZONE A: AIR ===" } },
-    { "type": "wokwi-dht22", "id": "dht", "top": 600, "left": 0, "attrs": {} },
-    { "type": "wokwi-photoresistor-sensor", "id": "ldr", "top": 600, "left": 100, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servoFan", "top": 700, "left": 0, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblFan", "top": 790, "left": 5, "attrs": { "text": "Fan (Servo)" } },
-    { "type": "wokwi-led-ring", "id": "ringHeat", "top": 700, "left": 100, "attrs": { "pixels": "12" } },
-    { "type": "wokwi-text", "id": "lblHeat", "top": 790, "left": 105, "attrs": { "text": "Heat" } },
-    { "type": "wokwi-led-ring", "id": "ringMist", "top": 700, "left": 200, "attrs": { "pixels": "12" } },
-    { "type": "wokwi-text", "id": "lblMist", "top": 790, "left": 205, "attrs": { "text": "Mist" } },
-    { "type": "wokwi-led-ring", "id": "ringGrow", "top": 800, "left": 50, "attrs": { "pixels": "12" } },
-    { "type": "wokwi-text", "id": "lblGrow", "top": 890, "left": 55, "attrs": { "text": "Grow" } },
+    { "type": "chip-pca9685", "id": "pca9685", "top": 250, "left": 0, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblPCA", "top": 220, "left": 20, "attrs": { "text": "PCA9685 (12 Servos)" } },
     
-    { "type": "wokwi-text", "id": "lblZoneB", "top": 560, "left": 350, "attrs": { "text": "=== ZONE B: SOIL ===" } },
-    { "type": "wokwi-potentiometer", "id": "potMoist", "top": 600, "left": 350, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "potPH", "top": 600, "left": 430, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "potN", "top": 700, "left": 350, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "potP", "top": 700, "left": 430, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "potK", "top": 700, "left": 510, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servoWater", "top": 800, "left": 350, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblWater", "top": 890, "left": 350, "attrs": { "text": "Water" } },
-    { "type": "wokwi-servo", "id": "servoN", "top": 800, "left": 430, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblN", "top": 890, "left": 440, "attrs": { "text": "N" } },
-    { "type": "wokwi-servo", "id": "servoP", "top": 800, "left": 510, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblP", "top": 890, "left": 520, "attrs": { "text": "P" } },
-    { "type": "wokwi-servo", "id": "servoK", "top": 800, "left": 590, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblK", "top": 890, "left": 600, "attrs": { "text": "K" } },
-    { "type": "wokwi-buzzer", "id": "buzzer", "top": 950, "left": 450, "attrs": {} },
+    { "type": "board-cd74hc4067", "id": "mux1", "top": 250, "left": 600, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblMux1", "top": 220, "left": 600, "attrs": { "text": "MUX1 - Shared Sensors" } },
     
-    { "type": "wokwi-text", "id": "lblZoneC", "top": 560, "left": 750, "attrs": { "text": "=== ZONE C: HYDRO ===" } },
-    { "type": "wokwi-potentiometer", "id": "potEC", "top": 600, "left": 850, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "potpH_C", "top": 600, "left": 930, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servoNutrient", "top": 700, "left": 850, "attrs": {} },
-    { "type": "wokwi-text", "id": "lblNutrient", "top": 790, "left": 855, "attrs": { "text": "Nutrient" } }
+    { "type": "wokwi-text", "id": "lblShared", "top": 450, "left": 20, "attrs": { "text": "========= SHARED ENVIRONMENT =========" } },
+    
+    { "type": "wokwi-dht22", "id": "dhtShared", "top": 490, "left": 30, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblDHT", "top": 560, "left": 5, "attrs": { "text": "Temp/Humidity" } },
+    
+    { "type": "wokwi-photoresistor-sensor", "id": "ldrShared", "top": 490, "left": 150, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblLDR", "top": 560, "left": 145, "attrs": { "text": "Light (LDR)" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potMoist", "top": 620, "left": 30, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblMoist", "top": 690, "left": 25, "attrs": { "text": "Moisture" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potPH", "top": 620, "left": 130, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblPH", "top": 690, "left": 140, "attrs": { "text": "pH" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potN", "top": 620, "left": 230, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblN", "top": 690, "left": 220, "attrs": { "text": "Nitrogen (N)" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potP", "top": 620, "left": 330, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblP", "top": 690, "left": 310, "attrs": { "text": "Phosphorus (P)" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potK", "top": 620, "left": 430, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblK", "top": 690, "left": 410, "attrs": { "text": "Potassium (K)" } },
+    
+    { "type": "wokwi-potentiometer", "id": "potEC", "top": 620, "left": 530, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblEC", "top": 690, "left": 540, "attrs": { "text": "EC" } },
+    
+    { "type": "wokwi-text", "id": "lblZone1", "top": 850, "left": 20, "attrs": { "text": "============ ZONE 1 ============" } },
+    
+    { "type": "wokwi-buzzer", "id": "buzzer1", "top": 890, "left": 350, "attrs": {} },
+    { "type": "wokwi-ili9341", "id": "tft1", "top": 890, "left": 900, "attrs": { "flipHorizontal": "1" } },
+    
+    { "type": "wokwi-servo", "id": "servo1Fan", "top": 1040, "left": 30, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1Fan", "top": 1110, "left": 45, "attrs": { "text": "Fan" } },
+    
+    { "type": "wokwi-servo", "id": "servo1Water", "top": 1040, "left": 140, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1Water", "top": 1110, "left": 145, "attrs": { "text": "Water" } },
+    
+    { "type": "wokwi-servo", "id": "servo1N", "top": 1040, "left": 250, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1N", "top": 1110, "left": 260, "attrs": { "text": "N" } },
+    
+    { "type": "wokwi-servo", "id": "servo1P", "top": 1040, "left": 360, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1P", "top": 1110, "left": 370, "attrs": { "text": "P" } },
+    
+    { "type": "wokwi-servo", "id": "servo1K", "top": 1040, "left": 470, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1K", "top": 1110, "left": 480, "attrs": { "text": "K" } },
+    
+    { "type": "wokwi-servo", "id": "servo1Nutrient", "top": 1040, "left": 580, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS1Nut", "top": 1110, "left": 575, "attrs": { "text": "Nutrient" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring1Heat", "top": 1180, "left": 30, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR1Heat", "top": 1270, "left": 40, "attrs": { "text": "Heat" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring1Mist", "top": 1180, "left": 150, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR1Mist", "top": 1270, "left": 160, "attrs": { "text": "Mist" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring1Grow", "top": 1180, "left": 270, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR1Grow", "top": 1270, "left": 265, "attrs": { "text": "GrowLight" } },
+    
+    { "type": "wokwi-text", "id": "lblZone2", "top": 1360, "left": 20, "attrs": { "text": "============ ZONE 2 ============" } },
+    
+    { "type": "wokwi-buzzer", "id": "buzzer2", "top": 1400, "left": 350, "attrs": {} },
+    { "type": "wokwi-ili9341", "id": "tft2", "top": 1400, "left": 900, "attrs": { "flipHorizontal": "1" } },
+    
+    { "type": "wokwi-servo", "id": "servo2Fan", "top": 1550, "left": 30, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2Fan", "top": 1620, "left": 45, "attrs": { "text": "Fan" } },
+    
+    { "type": "wokwi-servo", "id": "servo2Water", "top": 1550, "left": 140, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2Water", "top": 1620, "left": 145, "attrs": { "text": "Water" } },
+    
+    { "type": "wokwi-servo", "id": "servo2N", "top": 1550, "left": 250, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2N", "top": 1620, "left": 260, "attrs": { "text": "N" } },
+    
+    { "type": "wokwi-servo", "id": "servo2P", "top": 1550, "left": 360, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2P", "top": 1620, "left": 370, "attrs": { "text": "P" } },
+    
+    { "type": "wokwi-servo", "id": "servo2K", "top": 1550, "left": 470, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2K", "top": 1620, "left": 480, "attrs": { "text": "K" } },
+    
+    { "type": "wokwi-servo", "id": "servo2Nutrient", "top": 1550, "left": 580, "attrs": {} },
+    { "type": "wokwi-text", "id": "lblS2Nut", "top": 1620, "left": 575, "attrs": { "text": "Nutrient" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring2Heat", "top": 1690, "left": 30, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR2Heat", "top": 1780, "left": 40, "attrs": { "text": "Heat" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring2Mist", "top": 1690, "left": 150, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR2Mist", "top": 1780, "left": 160, "attrs": { "text": "Mist" } },
+    
+    { "type": "wokwi-led-ring", "id": "ring2Grow", "top": 1690, "left": 270, "attrs": { "pixels": "12" } },
+    { "type": "wokwi-text", "id": "lblR2Grow", "top": 1780, "left": 265, "attrs": { "text": "GrowLight" } }
   ],
   "connections": [
-    ["btnMode:1.r", "esp:GND.1", "black", []],
-    ["btnMode:2.l", "esp:D0", "green", []],
-    
-    ["tft:VCC", "esp:3V3", "red", []],
-    ["tft:GND", "esp:GND.2", "black", []],
-    ["tft:CS", "esp:D15", "orange", []],
-    ["tft:RST", "esp:D4", "orange", []],
-    ["tft:D/C", "esp:D2", "orange", []],
-    ["tft:MOSI", "esp:D23", "green", []],
-    ["tft:SCK", "esp:D18", "blue", []],
-    ["tft:LED", "esp:3V3", "red", []],
-    ["tft:MISO", "esp:D19", "yellow", []],
+    ["buzzer1:1", "esp:GND.2", "black", []],
+    ["buzzer1:2", "esp:D33", "orange", []],
+    ["buzzer2:1", "esp:GND.2", "black", []],
+    ["buzzer2:2", "esp:D32", "orange", []],
     
     ["pca9685:VCC", "esp:VIN", "red", []],
     ["pca9685:GND", "esp:GND.1", "black", []],
     ["pca9685:SDA", "esp:D21", "blue", []],
     ["pca9685:SCL", "esp:D22", "yellow", []],
     
-    ["dht:SDA", "esp:D26", "green", []],
-    ["dht:VCC", "esp:3V3", "red", []],
-    ["dht:GND", "esp:GND.2", "black", []],
+    ["mux1:VCC", "esp:3V3", "red", []],
+    ["mux1:GND", "esp:GND.2", "black", []],
+    ["mux1:COM", "esp:D34", "cyan", []],
+    ["mux1:S0", "esp:D16", "purple", []],
+    ["mux1:S1", "esp:D17", "purple", []],
+    ["mux1:S2", "esp:D5", "purple", []],
+    ["mux1:S3", "esp:D4", "purple", []],
+    ["mux1:EN", "esp:GND.2", "black", []],
     
-    ["ldr:AO", "esp:D34", "green", []],
-    ["ldr:VCC", "esp:3V3", "red", []],
-    ["ldr:GND", "esp:GND.2", "black", []],
+    ["oledMain:VCC", "esp:3V3", "red", []],
+    ["oledMain:GND", "esp:GND.2", "black", []],
+    ["oledMain:SDA", "esp:D21", "blue", []],
+    ["oledMain:SCL", "esp:D22", "yellow", []],
     
-    ["servoFan:PWM", "pca9685:LED4", "green", []],
-    ["servoFan:V+", "esp:VIN", "red", []],
-    ["servoFan:GND", "esp:GND.1", "black", []],
+    ["dhtShared:SDA", "esp:D25", "green", []],
+    ["dhtShared:VCC", "esp:3V3", "red", []],
+    ["dhtShared:GND", "esp:GND.2", "black", []],
     
-    ["ringHeat:DIN", "esp:D12", "purple", []],
-    ["ringHeat:VCC", "esp:VIN", "red", []],
-    ["ringHeat:GND", "esp:GND.2", "black", []],
+    ["ldrShared:AO", "esp:VP", "green", []],
+    ["ldrShared:VCC", "esp:3V3", "red", []],
+    ["ldrShared:GND", "esp:GND.2", "black", []],
     
-    ["ringMist:DIN", "esp:D14", "cyan", []],
-    ["ringMist:VCC", "esp:VIN", "red", []],
-    ["ringMist:GND", "esp:GND.2", "black", []],
-    
-    ["ringGrow:DIN", "esp:D27", "magenta", []],
-    ["ringGrow:VCC", "esp:VIN", "red", []],
-    ["ringGrow:GND", "esp:GND.2", "black", []],
-    
-    ["potMoist:SIG", "esp:VP", "green", []],
+    ["potMoist:SIG", "mux1:I0", "green", []],
     ["potMoist:VCC", "esp:3V3", "red", []],
     ["potMoist:GND", "esp:GND.2", "black", []],
-    
-    ["potPH:SIG", "esp:D32", "green", []],
+    ["potPH:SIG", "mux1:I1", "green", []],
     ["potPH:VCC", "esp:3V3", "red", []],
     ["potPH:GND", "esp:GND.2", "black", []],
-    
-    ["potN:SIG", "esp:VN", "green", []],
+    ["potN:SIG", "mux1:I2", "green", []],
     ["potN:VCC", "esp:3V3", "red", []],
     ["potN:GND", "esp:GND.2", "black", []],
-    
-    ["potP:SIG", "esp:D35", "green", []],
+    ["potP:SIG", "mux1:I3", "green", []],
     ["potP:VCC", "esp:3V3", "red", []],
     ["potP:GND", "esp:GND.2", "black", []],
-    
-    ["potK:SIG", "esp:D25", "green", []],
+    ["potK:SIG", "mux1:I4", "green", []],
     ["potK:VCC", "esp:3V3", "red", []],
     ["potK:GND", "esp:GND.2", "black", []],
-    
-    ["servoWater:PWM", "pca9685:LED0", "green", []],
-    ["servoWater:V+", "esp:VIN", "red", []],
-    ["servoWater:GND", "esp:GND.1", "black", []],
-    
-    ["servoN:PWM", "pca9685:LED1", "green", []],
-    ["servoN:V+", "esp:VIN", "red", []],
-    ["servoN:GND", "esp:GND.1", "black", []],
-    
-    ["servoP:PWM", "pca9685:LED2", "green", []],
-    ["servoP:V+", "esp:VIN", "red", []],
-    ["servoP:GND", "esp:GND.1", "black", []],
-    
-    ["servoK:PWM", "pca9685:LED3", "green", []],
-    ["servoK:V+", "esp:VIN", "red", []],
-    ["servoK:GND", "esp:GND.1", "black", []],
-    
-    ["buzzer:1", "esp:GND.2", "black", []],
-    ["buzzer:2", "esp:RX0", "orange", []],
-    
-    
-    ["potEC:SIG", "esp:D4", "green", []],
+    ["potEC:SIG", "mux1:I5", "green", []],
     ["potEC:VCC", "esp:3V3", "red", []],
     ["potEC:GND", "esp:GND.2", "black", []],
     
-    ["potpH_C:SIG", "esp:D33", "green", []],
-    ["potpH_C:VCC", "esp:3V3", "red", []],
-    ["potpH_C:GND", "esp:GND.2", "black", []],
+    ["tft1:VCC", "esp:3V3", "red", []],
+    ["tft1:GND", "esp:GND.2", "black", []],
+    ["tft1:CS", "esp:D15", "orange", []],
+    ["tft1:RST", "esp:3V3", "red", []],
+    ["tft1:D/C", "esp:D2", "orange", []],
+    ["tft1:MOSI", "esp:D23", "green", []],
+    ["tft1:SCK", "esp:D18", "blue", []],
+    ["tft1:LED", "esp:3V3", "red", []],
+    ["tft1:MISO", "esp:D19", "yellow", []],
     
-    ["servoNutrient:PWM", "pca9685:LED6", "white", []],
-    ["servoNutrient:V+", "esp:VIN", "red", []],
-    ["servoNutrient:GND", "esp:GND.1", "black", []]
+    ["tft2:VCC", "esp:3V3", "red", []],
+    ["tft2:GND", "esp:GND.2", "black", []],
+    ["tft2:CS", "esp:D27", "orange", []],
+    ["tft2:RST", "esp:3V3", "red", []],
+    ["tft2:D/C", "esp:D2", "orange", []],
+    ["tft2:MOSI", "esp:D23", "green", []],
+    ["tft2:SCK", "esp:D18", "blue", []],
+    ["tft2:LED", "esp:3V3", "red", []],
+    ["tft2:MISO", "esp:D19", "yellow", []],
+    
+    ["servo1Fan:PWM", "pca9685:LED0", "green", []],
+    ["servo1Fan:V+", "esp:VIN", "red", []],
+    ["servo1Fan:GND", "esp:GND.1", "black", []],
+    ["servo1Water:PWM", "pca9685:LED1", "green", []],
+    ["servo1Water:V+", "esp:VIN", "red", []],
+    ["servo1Water:GND", "esp:GND.1", "black", []],
+    ["servo1N:PWM", "pca9685:LED2", "green", []],
+    ["servo1N:V+", "esp:VIN", "red", []],
+    ["servo1N:GND", "esp:GND.1", "black", []],
+    ["servo1P:PWM", "pca9685:LED3", "green", []],
+    ["servo1P:V+", "esp:VIN", "red", []],
+    ["servo1P:GND", "esp:GND.1", "black", []],
+    ["servo1K:PWM", "pca9685:LED4", "green", []],
+    ["servo1K:V+", "esp:VIN", "red", []],
+    ["servo1K:GND", "esp:GND.1", "black", []],
+    ["servo1Nutrient:PWM", "pca9685:LED5", "green", []],
+    ["servo1Nutrient:V+", "esp:VIN", "red", []],
+    ["servo1Nutrient:GND", "esp:GND.1", "black", []],
+    
+    ["servo2Fan:PWM", "pca9685:LED6", "green", []],
+    ["servo2Fan:V+", "esp:VIN", "red", []],
+    ["servo2Fan:GND", "esp:GND.1", "black", []],
+    ["servo2Water:PWM", "pca9685:LED7", "green", []],
+    ["servo2Water:V+", "esp:VIN", "red", []],
+    ["servo2Water:GND", "esp:GND.1", "black", []],
+    ["servo2N:PWM", "pca9685:LED8", "green", []],
+    ["servo2N:V+", "esp:VIN", "red", []],
+    ["servo2N:GND", "esp:GND.1", "black", []],
+    ["servo2P:PWM", "pca9685:LED9", "green", []],
+    ["servo2P:V+", "esp:VIN", "red", []],
+    ["servo2P:GND", "esp:GND.1", "black", []],
+    ["servo2K:PWM", "pca9685:LED10", "green", []],
+    ["servo2K:V+", "esp:VIN", "red", []],
+    ["servo2K:GND", "esp:GND.1", "black", []],
+    ["servo2Nutrient:PWM", "pca9685:LED11", "green", []],
+    ["servo2Nutrient:V+", "esp:VIN", "red", []],
+    ["servo2Nutrient:GND", "esp:GND.1", "black", []],
+    
+    ["ring1Heat:DIN", "esp:D12", "purple", []],
+    ["ring1Heat:VCC", "esp:VIN", "red", []],
+    ["ring1Heat:GND", "esp:GND.2", "black", []],
+    ["ring1Mist:DIN", "ring1Heat:DOUT", "cyan", []],
+    ["ring1Mist:VCC", "esp:VIN", "red", []],
+    ["ring1Mist:GND", "esp:GND.2", "black", []],
+    ["ring1Grow:DIN", "ring1Mist:DOUT", "magenta", []],
+    ["ring1Grow:VCC", "esp:VIN", "red", []],
+    ["ring1Grow:GND", "esp:GND.2", "black", []],
+    
+    ["ring2Heat:DIN", "esp:D13", "purple", []],
+    ["ring2Heat:VCC", "esp:VIN", "red", []],
+    ["ring2Heat:GND", "esp:GND.2", "black", []],
+    ["ring2Mist:DIN", "ring2Heat:DOUT", "cyan", []],
+    ["ring2Mist:VCC", "esp:VIN", "red", []],
+    ["ring2Mist:GND", "esp:GND.2", "black", []],
+    ["ring2Grow:DIN", "ring2Mist:DOUT", "magenta", []],
+    ["ring2Grow:VCC", "esp:VIN", "red", []],
+    ["ring2Grow:GND", "esp:GND.2", "black", []]
   ],
   "dependencies": {
-    "chip-pca9685": "github:bonnyr/wokwi-pca9685-custom-chip@0.1.1"
+    "chip-pca9685": "github:bonnyr/wokwi-pca9685-custom-chip@0.1.1",
+    "board-cd74hc4067": "github:Droog71/CD74HC4067@0.0.3"
   }
 }

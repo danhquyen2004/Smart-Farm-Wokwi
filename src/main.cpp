@@ -1,110 +1,148 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <TFT_eSPI.h>
 #include <Adafruit_PWMServoDriver.h>
-#include "ZoneA.h"
-#include "ZoneB.h"
-#include "ZoneC.h"
+#include "MuxManager.h"
+#include "PlantZone.h"
 
-// TFT display
+// ==================== HARDWARE INSTANCES ====================
+
+// OLED Display (I2C) - System Monitor
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+// TFT Display (SPI) - Zone Monitoring
 TFT_eSPI tft = TFT_eSPI();
 
-// PCA9685 servo driver (I2C address 0x40)
+// PCA9685 PWM Servo Driver (I2C)
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// Zone instances
-ZoneA* zoneA = nullptr;
-ZoneB* zoneB = nullptr;
-ZoneC* zoneC = nullptr;
+// Multiplexer Manager (MUX1 for shared sensors)
+MuxManager mux;
 
-// Button for profile switching
-const int PIN_BUTTON = 0;  // MODE button from diagram.json
+// ==================== ZONES ====================
+
+PlantZone* zone1 = nullptr;
+PlantZone* zone2 = nullptr;
+
+// ==================== UI ====================
+
 int currentProfileIndex = 0;
-PlantProfile* profiles[] = { &PROFILE_LETTUCE, &PROFILE_MELON, &PROFILE_STRAWBERRY };
-const char* profileNames[] = { "XA LACH", "DUA LUOI", "DAU TAY" };
-bool lastButtonState = HIGH;
+PlantProfile* profiles[] = { &PROFILE_LETTUCE, &PROFILE_STRAWBERRY, &PROFILE_TOMATO };
+const int NUM_PROFILES = 3;
+
+int selectedZoneBtn = 0;
+
+// ==================== TFT CS PIN CONTROL ====================
+
+// CS pins for Zone displays (ESP32 DevKit V1)
+const int PIN_CS_TFT1 = 15;  // Zone 1 Display
+const int PIN_CS_TFT2 = 27;  // Zone 2 Display
+
+void selectTFT(int tftNum) {
+  // Deselect all known TFTs
+  digitalWrite(PIN_CS_TFT1, HIGH);
+  digitalWrite(PIN_CS_TFT2, HIGH);
+  delayMicroseconds(10);
+  
+  switch (tftNum) {
+    case 1: digitalWrite(PIN_CS_TFT1, LOW); break;
+    case 2: digitalWrite(PIN_CS_TFT2, LOW); break;
+  }
+}
+
+// ==================== SETUP ====================
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Nong Trai Thong Minh - 3 Zone Complete");
+  Serial.println("\n===========================================");
+  Serial.println("  Smart Farm v2.3 - Shared Environment");
+  Serial.println("  Main: OLED 128x64 (I2C)");
+  Serial.println("  Zones: TFT ILI9341 (SPI)");
+  Serial.println("  Sensors: Shared for both zones");
+  Serial.println("===========================================");
   
-  // Initialize button
-  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  // Initialize I2C (needed for OLED and PCA9685)
+  // Pins SDA=21, SCL=22 default
+  Wire.begin();
+  
+  // I2C Scanner Debug
+  Serial.println("Scanning I2C bus...");
+  for(byte i = 8; i < 120; i++){
+    Wire.beginTransmission(i);
+    if (Wire.endTransmission() == 0){
+      Serial.print("Found I2C device at: 0x");
+      Serial.println(i, HEX);
+    }
+  }
+  
+  // Initialize TFT CS pins
+  pinMode(PIN_CS_TFT1, OUTPUT);
+  pinMode(PIN_CS_TFT2, OUTPUT);
+  digitalWrite(PIN_CS_TFT1, HIGH);
+  digitalWrite(PIN_CS_TFT2, HIGH);
   
   // Initialize PCA9685
   pwm.begin();
-  pwm.setPWMFreq(50);  // Servo frequency: 50Hz
-  Serial.println("PCA9685 initialized");
+  pwm.setPWMFreq(50);
+  Serial.println("[OK] PCA9685 initialized");
   
-  // Initialize TFT
-  tft.init();
-  tft.setRotation(0); // Portrait (dọc)
-  tft.fillScreen(TFT_BLACK);
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextSize(1);
+  // Initialize MUX
+  mux.begin();
   
-  // Startup message
-  tft.setCursor(10, 10);
-  tft.println("Khoi dong he thong...");
-  tft.println("Khu A: Khong khi");
-  tft.println("Khu B: Dat");
-  tft.println("Khu C: Hydro");
-  delay(2000);
-  
-  // Initialize Zone A (with PCA9685 for servo)
-  zoneA = new ZoneA(&tft, &pwm);
-  zoneA->begin();
-  zoneA->setProfile(&PROFILE_LETTUCE);
-  
-  // Initialize Zone B (with PCA9685 for servos)
-  zoneB = new ZoneB(&tft, &pwm);
-  zoneB->begin();
-  zoneB->setProfile(&PROFILE_LETTUCE);
-  
-  // Initialize Zone C (simplified - EC and pH only)
-  zoneC = new ZoneC(&tft, &pwm);
-  zoneC->begin();
-  zoneC->setProfile(&PROFILE_LETTUCE);
-  
-  tft.fillScreen(TFT_BLACK);
-  
-  Serial.println("He thong san sang!");
-  Serial.println("Bam nut MODE de thay doi cay trong");
-}
-
-void loop() {
-  // Check button for profile switching
-  bool buttonState = digitalRead(PIN_BUTTON);
-  
-  if (buttonState == LOW && lastButtonState == HIGH) {
-    // Button pressed - switch profile for ALL 3 zones
-    currentProfileIndex = (currentProfileIndex + 1) % 3;
-    zoneA->setProfile(profiles[currentProfileIndex]);
-    zoneB->setProfile(profiles[currentProfileIndex]);
-    zoneC->setProfile(profiles[currentProfileIndex]);
-    
-    // Show profile change message
-    tft.fillRect(0, 150, 240, 20, TFT_BLUE);
-    tft.setTextColor(TFT_WHITE, TFT_BLUE);
-    tft.drawString("CAY: ", 10, 155, 1);
-    tft.drawString(profileNames[currentProfileIndex], 50, 155, 1);
-    
-    Serial.print("Doi sang cay: ");
-    Serial.println(profileNames[currentProfileIndex]);
-    
-    delay(1000); // Debounce and show message
-    tft.fillRect(0, 150, 240, 20, TFT_BLACK); // Clear message
+  // ====== Initialize OLED Display (System Monitor) ======
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
+    Serial.println(F("[ERR] SSD1306 allocation failed"));
+  } else {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0,0);
+    display.println("SMART FARM v2.3");
+    display.println("-------------------");
+    display.println("System: Ready");
+    display.println("Zones: 2");
+    display.println("Sensors: Shared");
+    display.println("-------------------");
+    display.println("Login via App");
+    display.display();
+    Serial.println("[OK] OLED Display initialized");
   }
   
-  lastButtonState = buttonState;
+  // ====== Initialize TFT Display (ILI9341) ======
+  tft.init();
+  // Portrait mode - mirror fix handled by "flip": "horizontal" in diagram.json
+  tft.setRotation(0);
   
-  // Update Zone A at top (yOffset = 0)
-  zoneA->update(0);
+  tft.fillScreen(TFT_BLACK);
+  Serial.println("[OK] TFT Display initialized");
   
-  // Update Zone B middle (yOffset = 106)
-  zoneB->update(106);
+  // ====== Initialize Zones ======
+  Serial.println("Initializing Plant Zones...");
   
-  // Update Zone C bottom (yOffset = 212)
-  zoneC->update(212);
+  zone1 = new PlantZone(0, &tft, &pwm, &mux);
+  zone1->begin();
+  zone1->setProfile(&PROFILE_LETTUCE);
   
-  delay(15); // Fast update for smooth servo animation
+  zone2 = new PlantZone(1, &tft, &pwm, &mux);
+  zone2->begin();
+  zone2->setProfile(&PROFILE_STRAWBERRY);
+  
+  Serial.println("[OK] All systems initialized");
+  Serial.println("===========================================\n");
+}
+
+// ==================== MAIN LOOP ====================
+
+void loop() {
+  // Update Zone 1 TFT
+  selectTFT(1);
+  if (zone1 != nullptr) zone1->update(0);
+  
+  // Update Zone 2 TFT
+  selectTFT(2);
+  if (zone2 != nullptr) zone2->update(0);
+  
+  delay(50);
 }
