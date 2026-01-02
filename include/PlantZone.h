@@ -52,21 +52,20 @@ private:
   
   // Zone-specific hardware
   DHT* dht;  // Points to sharedDHT for all zones
-  Adafruit_NeoPixel* ringHeat;
-  Adafruit_NeoPixel* ringMist;
-  Adafruit_NeoPixel* ringGrow;
+  Adafruit_NeoPixel* ledRing; // Handling daisy-chained Heat, Mist, Grow (36 pixels total)
   
   // Pin assignments
   uint8_t pinDHT;
   uint8_t pinLDR;
   uint8_t pinBuzzer;  // Zone-specific buzzer
-  uint8_t pinRingHeat;
-  uint8_t pinRingMist;
-  uint8_t pinRingGrow;
+  uint8_t pinLedRing;
   
-  // PCA9685 channels for servos
+  // PCA9685 channels
   uint8_t pwmChFan;
   uint8_t pwmChWater;
+  uint8_t pwmChN;
+  uint8_t pwmChP;
+  uint8_t pwmChK;
   uint8_t pwmChNutrient;
   
   // Current plant profile
@@ -89,6 +88,9 @@ private:
   bool mistActive;
   bool growActive;
   bool waterActive;
+  bool nActive;
+  bool pActive;
+  bool kActive;
   bool nutrientActive;
   bool alarmActive;
   
@@ -113,7 +115,24 @@ private:
   // Servo animation states
   int servoFanPos, servoFanDir;
   int servoWaterPos, servoWaterDir;
+  int servoNPos, servoNDir;
+  int servoPPos, servoPDir;
+  int servoKPos, servoKDir;
   int servoNutrientPos, servoNutrientDir;
+  
+  // Performance optimization timers
+  unsigned long lastUpdateTFT;
+  unsigned long lastReadDHT;
+  
+  // Stored values for change detection
+  float lastDispTemp;
+  float lastDispHum;
+  int lastDispLight;
+  int lastDispMoist;
+  float lastDispPH;
+  int lastDispN, lastDispP, lastDispK;
+  float lastDispEC;
+  bool lastDispAlarm;
   
   // Auto/Manual mode
   bool isAutoMode;
@@ -129,6 +148,9 @@ private:
   void controlMist();
   void controlGrow();
   void controlWater();
+  void controlN();
+  void controlP();
+  void controlK();
   void controlNutrient();
   void checkAlarm();
   void updateBuzzer();  // Zone-specific buzzer control

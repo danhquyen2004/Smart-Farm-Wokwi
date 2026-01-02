@@ -67,15 +67,9 @@ void setup() {
   // Pins SDA=21, SCL=22 default
   Wire.begin();
   
-  // I2C Scanner Debug
-  Serial.println("Scanning I2C bus...");
-  for(byte i = 8; i < 120; i++){
-    Wire.beginTransmission(i);
-    if (Wire.endTransmission() == 0){
-      Serial.print("Found I2C device at: 0x");
-      Serial.println(i, HEX);
-    }
-  }
+  // Initialize I2C
+  Wire.begin();
+  delay(100);
   
   // Initialize TFT CS pins
   pinMode(PIN_CS_TFT1, OUTPUT);
@@ -86,10 +80,12 @@ void setup() {
   // Initialize PCA9685
   pwm.begin();
   pwm.setPWMFreq(50);
+  delay(100);
   Serial.println("[OK] PCA9685 initialized");
   
   // Initialize MUX
-  mux.begin();
+  // mux.begin();
+  // delay(100);
   
   // ====== Initialize OLED Display (System Monitor) ======
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
@@ -110,13 +106,28 @@ void setup() {
     Serial.println("[OK] OLED Display initialized");
   }
   
-  // ====== Initialize TFT Display (ILI9341) ======
+  // ====== Initialize TFT Displays (SPI) ======
+  selectTFT(1); 
   tft.init();
-  // Portrait mode - mirror fix handled by "flip": "horizontal" in diagram.json
   tft.setRotation(0);
+  tft.invertDisplay(false); // Fix white background/color swap
+  delay(100);
   
+  // Clear Zone 1 Display
+  selectTFT(1);
   tft.fillScreen(TFT_BLACK);
-  Serial.println("[OK] TFT Display initialized");
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString("Khoi tao Vung 1...", 10, 10);
+  delay(100);
+  
+  // Clear Zone 2 Display
+  selectTFT(2);
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString("Khoi tao Vung 2...", 10, 10);
+  delay(100);
+  
+  Serial.println("[OK] TFT Displays initialized and cleared");
   
   // ====== Initialize Zones ======
   Serial.println("Initializing Plant Zones...");
@@ -144,5 +155,5 @@ void loop() {
   selectTFT(2);
   if (zone2 != nullptr) zone2->update(0);
   
-  delay(50);
+  delay(100);
 }

@@ -19,17 +19,17 @@ void MuxManager::begin() {
   
   Serial.println("MuxManager: Initialized (ESP32 DevKit V1)");
   Serial.println("  MUX1 (Analog) on GPIO34");
-  Serial.println("  S0-S3: GPIO 16, 17, 5, 4");
+  Serial.println("  S0-S3: GPIO 16, 17, 26, 14");
 }
 
 void MuxManager::selectChannel(uint8_t channel) {
   // Channel is 4-bit value (0-15) for 16-channel CD74HC4067
-  digitalWrite(PIN_MUX_S0, channel & 0x01);
-  digitalWrite(PIN_MUX_S1, (channel >> 1) & 0x01);
-  digitalWrite(PIN_MUX_S2, (channel >> 2) & 0x01);
-  digitalWrite(PIN_MUX_S3, (channel >> 3) & 0x01);
+  digitalWrite(PIN_MUX_S0, (channel & 0x01) ? HIGH : LOW);
+  digitalWrite(PIN_MUX_S1, (channel >> 1) & 0x01 ? HIGH : LOW);
+  digitalWrite(PIN_MUX_S2, (channel >> 2) & 0x01 ? HIGH : LOW);
+  digitalWrite(PIN_MUX_S3, (channel >> 3) & 0x01 ? HIGH : LOW);
   
-  // Wait for signal to settle
+  // Wait for signal to settle (very important for ADC stability)
   delayMicroseconds(SETTLING_TIME_US);
 }
 

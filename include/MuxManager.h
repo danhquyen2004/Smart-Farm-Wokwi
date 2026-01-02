@@ -51,14 +51,14 @@ private:
   // ESP32 DevKit V1 GPIO pins for MUX control
   static const uint8_t PIN_MUX_S0 = 16;
   static const uint8_t PIN_MUX_S1 = 17;
-  static const uint8_t PIN_MUX_S2 = 5;
-  static const uint8_t PIN_MUX_S3 = 4;
+  static const uint8_t PIN_MUX_S2 = 26; // Moved from 5 to avoid SPI SS conflict
+  static const uint8_t PIN_MUX_S3 = 14; // Moved from 4 to avoid SPI conflict
   
   // MUX1: Analog sensors
   static const uint8_t PIN_MUX1_COM = 34;  // ADC1 - WiFi Safe
   
   // Settling time after channel switch (microseconds)
-  static const uint16_t SETTLING_TIME_US = 10;
+  static const uint16_t SETTLING_TIME_US = 200; // Increased for stability
   
   // Select a channel on the multiplexers (0-15)
   // Both MUXes will select the same channel due to shared S0-S3

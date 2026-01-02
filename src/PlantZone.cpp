@@ -69,9 +69,7 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   mux = multiplexer;
   
   dht = nullptr;
-  ringHeat = nullptr;
-  ringMist = nullptr;
-  ringGrow = nullptr;
+  ledRing = nullptr;
   
   // ESP32 DevKit V1 - Shared Environment Edition
   // All zones share the same environment sensors
@@ -82,18 +80,21 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   
   // Zone-specific actuator pins
   if (zoneId == 0) {
-    pinBuzzer = 33;
-    pinRingHeat = 12;
+    pinBuzzer = 4;   // Moved from 33 to free up ADC pin
+    pinLedRing = 12;
   } else {
-    pinBuzzer = 32;
-    pinRingHeat = 13;
+    pinBuzzer = 5;   // Moved from 32 to free up ADC pin
+    pinLedRing = 13;
   }
   
   
-  // PCA9685 channels (Zone 1: 0-5, Zone 2: 6-11)
+  // PCA9685 channels
   pwmChFan = zoneId * 6;
   pwmChWater = zoneId * 6 + 1;
-  pwmChNutrient = zoneId * 6 + 5;  // Channel 5 or 11 for nutrient
+  pwmChN = zoneId * 6 + 2;
+  pwmChP = zoneId * 6 + 3;
+  pwmChK = zoneId * 6 + 4;
+  pwmChNutrient = zoneId * 6 + 5;
   
   // Initialize sensor values
   temperature = 25.0f;
@@ -112,6 +113,9 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   mistActive = false;
   growActive = false;
   waterActive = false;
+  nActive = false;
+  pActive = false;
+  kActive = false;
   nutrientActive = false;
   alarmActive = false;
   
@@ -136,6 +140,9 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   // Initialize servo states
   servoFanPos = 90; servoFanDir = 1;
   servoWaterPos = 90; servoWaterDir = 1;
+  servoNPos = 90; servoNDir = 1;
+  servoPPos = 90; servoPDir = 1;
+  servoKPos = 90; servoKDir = 1;
   servoNutrientPos = 90; servoNutrientDir = 1;
   
   // Default to auto mode
@@ -143,13 +150,23 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   
   // Default profile
   profile = &PROFILE_LETTUCE;
+  
+  // Performance optimization
+  lastUpdateTFT = 0;
+  lastReadDHT = 0;
+  lastDispTemp = -999;
+  lastDispHum = -999;
+  lastDispLight = -999;
+  lastDispMoist = -999;
+  lastDispPH = -999;
+  lastDispN = -999; lastDispP = -999; lastDispK = -999;
+  lastDispEC = -999;
+  lastDispAlarm = false;
 }
 
 PlantZone::~PlantZone() {
   if (dht) delete dht;
-  if (ringHeat) delete ringHeat;
-  if (ringMist) delete ringMist;
-  if (ringGrow) delete ringGrow;
+  if (ledRing) delete ledRing;
 }
 
 void PlantZone::begin() {
@@ -161,18 +178,13 @@ void PlantZone::begin() {
   }
   dht = sharedDHT;  // Point to shared sensor
   
-  // Initialize LED rings (12 pixels each)
-  ringHeat = new Adafruit_NeoPixel(12, pinRingHeat, NEO_GRB + NEO_KHZ800);
-  ringMist = new Adafruit_NeoPixel(12, pinRingMist, NEO_GRB + NEO_KHZ800);
-  ringGrow = new Adafruit_NeoPixel(12, pinRingGrow, NEO_GRB + NEO_KHZ800);
-  
-  ringHeat->begin();
-  ringMist->begin();
-  ringGrow->begin();
-  
-  ringHeat->clear(); ringHeat->show();
-  ringMist->clear(); ringMist->show();
-  ringGrow->clear(); ringGrow->show();
+  // Initialize daisy-chained LED rings
+  ledRing = new Adafruit_NeoPixel(36, pinLedRing, NEO_GRB + NEO_KHZ800);
+  ledRing->begin();
+  delay(50);
+  ledRing->clear(); 
+  ledRing->show();
+  delay(50);
   
   // Initialize LDR pin (shared, but pinMode is harmless to call multiple times)
   pinMode(pinLDR, INPUT);
@@ -184,6 +196,9 @@ void PlantZone::begin() {
   // Stop all servos at center position
   pwm->setPWM(pwmChFan, 0, 375);
   pwm->setPWM(pwmChWater, 0, 375);
+  pwm->setPWM(pwmChN, 0, 375);
+  pwm->setPWM(pwmChP, 0, 375);
+  pwm->setPWM(pwmChK, 0, 375);
   pwm->setPWM(pwmChNutrient, 0, 375);
   
   Serial.printf("PlantZone %d: Initialized (Shared Environment)\n", zoneId + 1);
@@ -197,34 +212,37 @@ void PlantZone::setProfile(PlantProfile* newProfile) {
 // ==================== SENSOR READING ====================
 
 void PlantZone::readSensors() {
-  // Read DHT22 (Air temperature & humidity)
-  float rawTemp = dht->readTemperature();
-  float rawHum = dht->readHumidity();
-  
-  if (!isnan(rawTemp)) {
-    float tempDelta = abs(rawTemp - prevRawTemp);
-    if (tempDelta > 2.0f) {
-      simTempOffset = 0;
-      temperature = rawTemp;
-    } else {
-      temperature = rawTemp + simTempOffset;
+  // Read DHT22 only every 2 seconds (Shared Environment optimization)
+  if (millis() - lastReadDHT > 2000) {
+    float rawTemp = dht->readTemperature();
+    float rawHum = dht->readHumidity();
+    
+    if (!isnan(rawTemp)) {
+      float tempDelta = abs(rawTemp - prevRawTemp);
+      if (tempDelta > 2.0f) {
+        simTempOffset = 0;
+        temperature = rawTemp;
+      } else {
+        temperature = rawTemp + simTempOffset;
+      }
+      prevRawTemp = rawTemp;
     }
-    prevRawTemp = rawTemp;
-  }
-  
-  if (!isnan(rawHum)) {
-    float humDelta = abs(rawHum - prevRawHum);
-    if (humDelta > 5.0f) {
-      simHumOffset = 0;
-      humidity = rawHum;
-    } else {
-      humidity = rawHum + simHumOffset;
+    
+    if (!isnan(rawHum)) {
+      float humDelta = abs(rawHum - prevRawHum);
+      if (humDelta > 5.0f) {
+        simHumOffset = 0;
+        humidity = rawHum;
+      } else {
+        humidity = rawHum + simHumOffset;
+      }
+      prevRawHum = rawHum;
     }
-    prevRawHum = rawHum;
+    lastReadDHT = millis();
   }
   
   // Clamp air values
-  temperature = constrain(temperature, 0, 60);
+  temperature = constrain(temperature, -40, 80);
   humidity = constrain(humidity, 0, 100);
   
   // Read LDR (Light level - inverted)
@@ -232,8 +250,11 @@ void PlantZone::readSensors() {
   lightLevel = map(ldrRaw, 0, 4095, 100, 0);
   lightLevel = constrain(lightLevel, 0, 100);
   
-  // Read soil sensors via MUX (with hybrid detection)
-  int rawMoist = mux->readRaw(MUX_MOISTURE);
+  // Read soil sensors DIRECTLY from ADC pins (no MUX - for Wokwi stability)
+  // Pin assignments: Moisture=34, pH=35, N=32, P=33, K=39(VN), EC=26
+  
+  // Moisture (GPIO 34)
+  int rawMoist = analogRead(34);
   if (abs(rawMoist - prevRawMoist) > 200) {
     simMoistOffset = 0;
   }
@@ -241,30 +262,34 @@ void PlantZone::readSensors() {
   moisture = map(rawMoist, 0, 4095, 0, 100) + (int)simMoistOffset;
   moisture = constrain(moisture, 0, 100);
   
-  // Soil pH (direct reading, no simulation)
-  soilPH = mux->readSoilPH();
+  // Soil pH (GPIO 35) - 0 to 14 range
+  int rawPH = analogRead(35);
+  soilPH = rawPH / 4095.0f * 14.0f;
+  soilPH = constrain(soilPH, 0.0f, 14.0f);
   
-  // NPK with simulation
-  int rawN = mux->readRaw(MUX_NITROGEN);
+  // Nitrogen (GPIO 32)
+  int rawN = analogRead(32);
   if (abs(rawN - prevRawN) > 100) simNOffset = 0;
   prevRawN = rawN;
   nitrogen = map(rawN, 0, 4095, 0, 500) + (int)simNOffset;
   nitrogen = constrain(nitrogen, 0, 500);
   
-  int rawP = mux->readRaw(MUX_PHOSPHORUS);
+  // Phosphorus (GPIO 33)
+  int rawP = analogRead(33);
   if (abs(rawP - prevRawP) > 100) simPOffset = 0;
   prevRawP = rawP;
   phosphorus = map(rawP, 0, 4095, 0, 500) + (int)simPOffset;
   phosphorus = constrain(phosphorus, 0, 500);
   
-  int rawK = mux->readRaw(MUX_POTASSIUM);
+  // Potassium (GPIO 39 = VN)
+  int rawK = analogRead(39);
   if (abs(rawK - prevRawK) > 100) simKOffset = 0;
   prevRawK = rawK;
   potassium = map(rawK, 0, 4095, 0, 500) + (int)simKOffset;
   potassium = constrain(potassium, 0, 500);
   
-  // Hydro EC with simulation
-  int rawEC = mux->readRaw(MUX_EC);
+  // Hydro EC (GPIO 26)
+  int rawEC = analogRead(26);
   if (abs(rawEC - prevRawEC) > 100) simECOffset = 0;
   prevRawEC = rawEC;
   hydroEC = (rawEC / 4095.0f * 3.0f) + simECOffset;
@@ -305,15 +330,14 @@ void PlantZone::controlHeat() {
   }
   
   if (heatActive) {
-    for (int i = 0; i < ringHeat->numPixels(); i++) {
-      ringHeat->setPixelColor(i, ringHeat->Color(255, 0, 0));
+    for (int i = 0; i < 12; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(255, 0, 0));
     }
     simTempOffset += TEMP_HEATING_RATE;
   } else {
-    ringHeat->clear();
+    for (int i = 0; i < 12; i++) ledRing->setPixelColor(i, 0);
     if (simTempOffset > 0) simTempOffset -= TEMP_RECOVERY_RATE;
   }
-  ringHeat->show();
 }
 
 void PlantZone::controlMist() {
@@ -326,15 +350,14 @@ void PlantZone::controlMist() {
   }
   
   if (mistActive) {
-    for (int i = 0; i < ringMist->numPixels(); i++) {
-      ringMist->setPixelColor(i, ringMist->Color(0, 255, 255));
+    for (int i = 12; i < 24; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(0, 255, 255));
     }
     simHumOffset += HUM_INCREASE_RATE;
   } else {
-    ringMist->clear();
+    for (int i = 12; i < 24; i++) ledRing->setPixelColor(i, 0);
     if (simHumOffset > 0) simHumOffset -= HUM_DECREASE_RATE;
   }
-  ringMist->show();
 }
 
 void PlantZone::controlGrow() {
@@ -347,13 +370,12 @@ void PlantZone::controlGrow() {
   }
   
   if (growActive) {
-    for (int i = 0; i < ringGrow->numPixels(); i++) {
-      ringGrow->setPixelColor(i, ringGrow->Color(255, 0, 255));
+    for (int i = 24; i < 36; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(255, 0, 255));
     }
   } else {
-    ringGrow->clear();
+    for (int i = 24; i < 36; i++) ledRing->setPixelColor(i, 0);
   }
-  ringGrow->show();
 }
 
 void PlantZone::controlWater() {
@@ -378,9 +400,74 @@ void PlantZone::controlWater() {
   }
 }
 
+void PlantZone::controlN() {
+  if (!isAutoMode) return;
+  
+  if (nitrogen < profile->nitrogenMin) {
+    nActive = true;
+  } else if (nitrogen > profile->nitrogenMin + NUTRIENT_HYSTERESIS) {
+    nActive = false;
+  }
+  
+  if (nActive) {
+    servoNPos += servoNDir * 15;
+    if (servoNPos >= 180) { servoNPos = 180; servoNDir = -1; }
+    if (servoNPos <= 0) { servoNPos = 0; servoNDir = 1; }
+    pwm->setPWM(pwmChN, 0, map(servoNPos, 0, 180, 150, 600));
+    simNOffset += NUTRIENT_INCREASE_RATE;
+  } else {
+    servoNPos = 90;
+    pwm->setPWM(pwmChN, 0, 375);
+    if (simNOffset > 0) simNOffset -= NUTRIENT_DECREASE_RATE;
+  }
+}
+
+void PlantZone::controlP() {
+  if (!isAutoMode) return;
+  
+  if (phosphorus < profile->phosphorusMin) {
+    pActive = true;
+  } else if (phosphorus > profile->phosphorusMin + NUTRIENT_HYSTERESIS) {
+    pActive = false;
+  }
+  
+  if (pActive) {
+    servoPPos += servoPDir * 15;
+    if (servoPPos >= 180) { servoPPos = 180; servoPDir = -1; }
+    if (servoPPos <= 0) { servoPPos = 0; servoPDir = 1; }
+    pwm->setPWM(pwmChP, 0, map(servoPPos, 0, 180, 150, 600));
+    simPOffset += NUTRIENT_INCREASE_RATE;
+  } else {
+    servoPPos = 90;
+    pwm->setPWM(pwmChP, 0, 375);
+    if (simPOffset > 0) simPOffset -= NUTRIENT_DECREASE_RATE;
+  }
+}
+
+void PlantZone::controlK() {
+  if (!isAutoMode) return;
+  
+  if (potassium < profile->potassiumMin) {
+    kActive = true;
+  } else if (potassium > profile->potassiumMin + NUTRIENT_HYSTERESIS) {
+    kActive = false;
+  }
+  
+  if (kActive) {
+    servoKPos += servoKDir * 15;
+    if (servoKPos >= 180) { servoKPos = 180; servoKDir = -1; }
+    if (servoKPos <= 0) { servoKPos = 0; servoKDir = 1; }
+    pwm->setPWM(pwmChK, 0, map(servoKPos, 0, 180, 150, 600));
+    simKOffset += NUTRIENT_INCREASE_RATE;
+  } else {
+    servoKPos = 90;
+    pwm->setPWM(pwmChK, 0, 375);
+    if (simKOffset > 0) simKOffset -= NUTRIENT_DECREASE_RATE;
+  }
+}
+
 void PlantZone::controlNutrient() {
   if (!isAutoMode) return;
-  if (alarmActive) return;  // Safety lockout
   
   if (hydroEC < profile->ecMin) {
     nutrientActive = true;
@@ -416,8 +503,14 @@ void PlantZone::controlActuators() {
   controlMist();
   controlGrow();
   controlWater();
+  controlN();
+  controlP();
+  controlK();
   controlNutrient();
   updateBuzzer();  // Zone-specific buzzer
+  
+  // Update LEDs once per loop for efficiency
+  ledRing->show();
 }
 
 void PlantZone::updateBuzzer() {
@@ -455,39 +548,38 @@ void PlantZone::setHeat(bool on) {
   if (isAutoMode) return;
   heatActive = on;
   if (on) {
-    for (int i = 0; i < ringHeat->numPixels(); i++) {
-      ringHeat->setPixelColor(i, ringHeat->Color(255, 0, 0));
+    for (int i = 0; i < 12; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(255, 0, 0));
     }
   } else {
-    ringHeat->clear();
+    for (int i = 0; i < 12; i++) ledRing->setPixelColor(i, 0);
   }
-  ringHeat->show();
+  ledRing->show();
 }
 
 void PlantZone::setMist(bool on) {
   if (isAutoMode) return;
   mistActive = on;
   if (on) {
-    for (int i = 0; i < ringMist->numPixels(); i++) {
-      ringMist->setPixelColor(i, ringMist->Color(0, 255, 255));
+    for (int i = 12; i < 24; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(0, 255, 255));
     }
   } else {
-    ringMist->clear();
+    for (int i = 12; i < 24; i++) ledRing->setPixelColor(i, 0);
   }
-  ringMist->show();
+  ledRing->show();
 }
 
 void PlantZone::setGrow(bool on) {
   if (isAutoMode) return;
   growActive = on;
   if (on) {
-    for (int i = 0; i < ringGrow->numPixels(); i++) {
-      ringGrow->setPixelColor(i, ringGrow->Color(255, 0, 255));
+    for (int i = 24; i < 36; i++) {
+      ledRing->setPixelColor(i, ledRing->Color(255, 0, 255));
     }
   } else {
-    ringGrow->clear();
+    for (int i = 24; i < 36; i++) ledRing->setPixelColor(i, 0);
   }
-  ringGrow->show();
 }
 
 void PlantZone::setWater(bool on) {
@@ -509,7 +601,11 @@ void PlantZone::updateDisplay(int yOffset) {
   
   char buffer[50];
   
-  // Zone header - 2x font
+  // Only update TFT once every 1000ms to reduce simulation lag
+  if (millis() - lastUpdateTFT < 1000) return;
+  lastUpdateTFT = millis();
+  
+  // Header - Size 2
   tft->fillRect(0, yOffset, 240, 24, TFT_DARKGREY);
   tft->setTextColor(TFT_WHITE, TFT_DARKGREY);
   tft->setTextFont(1);
@@ -517,70 +613,99 @@ void PlantZone::updateDisplay(int yOffset) {
   sprintf(buffer, "VUNG %d: %s", zoneId + 1, profile->name);
   tft->drawString(buffer, 5, yOffset + 4);
   
-  // Sensor data - 2x font, each on its own line
   int y = yOffset + 30;
-  int lineHeight = 18;  // Height for 2x font
+  int lineHeight = 18;
   
-  // Temperature
-  tft->setTextColor(TFT_GREEN, TFT_BLACK);
-  sprintf(buffer, "Nhiet do: %.1f do C   ", temperature);
-  tft->drawString(buffer, 5, y);
+  // Temperature - Only redraw if changed significantly
+  if (abs(temperature - lastDispTemp) > 0.1f) {
+    tft->setTextColor(TFT_YELLOW, TFT_BLACK);
+    sprintf(buffer, "Nhiet do: %.1f do C   ", temperature);
+    tft->drawString(buffer, 5, y);
+    lastDispTemp = temperature;
+  }
   
-  // Humidity (Air)
+  // Humidity
   y += lineHeight;
-  sprintf(buffer, "Do am KK: %.0f %%      ", humidity);
-  tft->drawString(buffer, 5, y);
+  if (abs(humidity - lastDispHum) > 0.5f) {
+    tft->setTextColor(TFT_BLUE, TFT_BLACK);
+    sprintf(buffer, "Do am KK: %.0f %%      ", humidity);
+    tft->drawString(buffer, 5, y);
+    lastDispHum = humidity;
+  }
   
-  // Light level
+  // Light
   y += lineHeight;
-  sprintf(buffer, "Anh sang: %d %%       ", lightLevel);
-  tft->drawString(buffer, 5, y);
+  if (abs(lightLevel - lastDispLight) > 1) {
+    tft->setTextColor(TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "Anh sang: %d %%       ", lightLevel);
+    tft->drawString(buffer, 5, y);
+    lastDispLight = lightLevel;
+  }
   
   // Soil moisture
   y += lineHeight;
-  tft->setTextColor(TFT_CYAN, TFT_BLACK);
-  sprintf(buffer, "Do am dat: %d %%      ", moisture);
-  tft->drawString(buffer, 5, y);
-  
-  // pH with color coding
-  y += lineHeight;
-  uint16_t phColor = TFT_GREEN;
-  if (soilPH < profile->phMin || soilPH > profile->phMax) {
-    phColor = TFT_RED;
-  } else if (soilPH < profile->phMin + 0.5 || soilPH > profile->phMax - 0.5) {
-    phColor = TFT_YELLOW;
+  if (abs(moisture - lastDispMoist) > 1) {
+    tft->setTextColor(TFT_CYAN, TFT_BLACK);
+    sprintf(buffer, "Do am dat: %d %%      ", moisture);
+    tft->drawString(buffer, 5, y);
+    lastDispMoist = moisture;
   }
-  tft->setTextColor(phColor, TFT_BLACK);
-  sprintf(buffer, "pH dat: %.1f         ", soilPH);
-  tft->drawString(buffer, 5, y);
   
-  // NPK separated
+  // pH
   y += lineHeight;
-  tft->setTextColor(TFT_MAGENTA, TFT_BLACK);
-  sprintf(buffer, "N: %d mg/kg          ", nitrogen);
-  tft->drawString(buffer, 5, y);
+  if (abs(soilPH - lastDispPH) > 0.1f) {
+    tft->setTextColor(TFT_GREEN, TFT_BLACK);
+    sprintf(buffer, "pH dat: %.1f         ", soilPH);
+    tft->drawString(buffer, 5, y);
+    lastDispPH = soilPH;
+  }
+  
+  // N
+  y += lineHeight;
+  if (nitrogen != lastDispN) {
+    tft->setTextColor(TFT_MAGENTA, TFT_BLACK);
+    sprintf(buffer, "N: %d mg/kg          ", nitrogen);
+    tft->drawString(buffer, 5, y);
+    lastDispN = nitrogen;
+  }
 
+  // P
   y += lineHeight;
-  sprintf(buffer, "P: %d mg/kg          ", phosphorus);
-  tft->drawString(buffer, 5, y);
+  if (phosphorus != lastDispP) {
+    tft->setTextColor(TFT_RED, TFT_BLACK);
+    sprintf(buffer, "P: %d mg/kg          ", phosphorus);
+    tft->drawString(buffer, 5, y);
+    lastDispP = phosphorus;
+  }
 
+  // K
   y += lineHeight;
-  sprintf(buffer, "K: %d mg/kg          ", potassium);
-  tft->drawString(buffer, 5, y);
+  if (potassium != lastDispK) {
+    tft->setTextColor(TFT_PINK, TFT_BLACK);
+    sprintf(buffer, "K: %d mg/kg          ", potassium);
+    tft->drawString(buffer, 5, y);
+    lastDispK = potassium;
+  }
 
-  // Hydro EC
+  // EC
   y += lineHeight;
-  tft->setTextColor(TFT_ORANGE, TFT_BLACK);
-  sprintf(buffer, "EC: %.2f mS/cm       ", hydroEC);
-  tft->drawString(buffer, 5, y);
+  if (abs(hydroEC - lastDispEC) > 0.05f) {
+    tft->setTextColor(TFT_ORANGE, TFT_BLACK);
+    sprintf(buffer, "EC: %.2f mS/cm       ", hydroEC);
+    tft->drawString(buffer, 5, y);
+    lastDispEC = hydroEC;
+  }
   
   // Alarm indicator
-  if (alarmActive) {
-    tft->fillRect(210, yOffset, 30, 24, TFT_RED);
-    tft->setTextColor(TFT_WHITE, TFT_RED);
-    tft->drawString("!", 218, yOffset + 4);
-  } else {
-    tft->fillRect(210, yOffset, 30, 24, TFT_DARKGREY);
+  if (alarmActive != lastDispAlarm) {
+    if (alarmActive) {
+      tft->fillRect(210, yOffset, 30, 24, TFT_RED);
+      tft->setTextColor(TFT_WHITE, TFT_RED);
+      tft->drawString("!", 218, yOffset + 4);
+    } else {
+      tft->fillRect(210, yOffset, 30, 24, TFT_DARKGREY);
+    }
+    lastDispAlarm = alarmActive;
   }
 }
 
