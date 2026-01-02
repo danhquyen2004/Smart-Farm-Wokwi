@@ -1,8 +1,7 @@
 #include "MenuSystem.h"
 
-MenuSystem::MenuSystem(Adafruit_SSD1306* disp, KeypadManager* kp) {
+MenuSystem::MenuSystem(Adafruit_SSD1306* disp) {
     display = disp;
-    keypad = kp;
     currentState = LOGIN;
     inputPassword = "";
 }
@@ -18,10 +17,8 @@ bool MenuSystem::isLoggedIn() {
 }
 
 void MenuSystem::update() {
-    char key = keypad->getKey();
-    if (key) {
-        handleInput(key);
-    }
+    // This method can be used for webapp polling or other updates
+    // Keypad input removed - now controlled via webapp
 }
 
 void MenuSystem::refresh() {
@@ -36,7 +33,7 @@ void MenuSystem::drawLogin() {
     // Header
     display->setTextSize(1);
     display->setCursor(0, 0);
-    display->println(F("SMART FARM v2.1"));
+    display->println(F("SMART FARM v2.3"));
     display->drawLine(0, 10, 128, 10, SSD1306_WHITE);
     
     // Debug Last Key
@@ -54,13 +51,13 @@ void MenuSystem::drawLogin() {
     display->setCursor(20, 39);
     
     String masked = "";
-    for (int i=0; i<inputPassword.length(); i++) masked += "*";
+    for (unsigned int i=0; i<inputPassword.length(); i++) masked += "*";
     display->print(masked);
     
     // Footer
     display->setTextSize(1);
     display->setCursor(10, 55);
-    display->print(F("D:OK  C:Clear"));
+    display->print(F("Login via WebApp"));
     
     display->display();
 }
@@ -86,25 +83,21 @@ void MenuSystem::drawDashboard() {
     display->print(F("Mode: "));
     display->println(z->getAutoMode() ? "AUTO" : "MANUAL");
     
-    display->print(F("Prof: "));
-    // Truncate profile name to fit
-    String pName = String(z->getProfile()->name);
-    display->println(pName.substring(0, 10));
+    display->print(F("Cay: "));
+    // Cat ngan ten cay cho vua
+    String tenCay = String(z->getProfile()->ten);
+    display->println(tenCay.substring(0, 10));
     
     // Sensor Data (Simplified)
     display->drawLine(0, 35, 128, 35, SSD1306_WHITE);
     display->setCursor(0, 40);
-    
-    // Read sensors via MUX safely?
-    // Note: We use last read values ideally, but here we might trigger read
-    // For now purely UI state
     
     display->print(F("Status: "));
     display->println(z->isAlarmActive() ? "ALARM!" : "OK");
     
     // Footer
     display->setCursor(0, 56);
-    display->print(F("A:Z1 B:Z2 D:Set"));
+    display->print(F("Control via WebApp"));
     
     display->display();
 }

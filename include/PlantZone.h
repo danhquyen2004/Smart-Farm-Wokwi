@@ -6,202 +6,210 @@
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_PWMServoDriver.h>
 #include <DHT.h>
-#include "MuxManager.h"
 
 /**
- * PlantProfile - Configuration for a specific plant type
+ * PlantProfile - Cau hinh cho tung loai cay
  */
 struct PlantProfile {
-  const char* name;
+  const char* ten;          // Ten cay
   
-  // Air thresholds
-  float tempMax;          // Fan ON if above
-  float tempMin;          // Heat ON if below
-  int humidityMin;        // Mist ON if below
-  int lightMin;           // Grow light ON if below
+  // Nguong khong khi
+  float nhietDoMax;         // Quat ON neu vuot
+  float nhietDoMin;         // Suoi ON neu duoi
+  int doAmKKMin;            // Phun suong ON neu duoi
+  int anhSangMin;           // Den ON neu duoi
   
-  // Soil thresholds
-  int moistureMin;        // Water pump ON if below
-  float phMin;            // Alarm if below
-  float phMax;            // Alarm if above
-  int nitrogenMin;        // N pump ON if below
-  int phosphorusMin;      // P pump ON if below
-  int potassiumMin;       // K pump ON if below
+  // Nguong dat
+  int doAmDatMin;           // Bom nuoc ON neu duoi
+  float phMin;              // Canh bao neu duoi
+  float phMax;              // Canh bao neu tren
+  int nMin;                 // Bom N ON neu duoi
+  int pMin;                 // Bom P ON neu duoi
+  int kMin;                 // Bom K ON neu duoi
   
-  // Hydro thresholds
-  float ecMin;            // Nutrient pump ON if below
-  float ecMax;            // Nutrient pump OFF if above
+  // Nguong thuy canh
+  float ecMin;              // Bom dinh duong ON neu duoi
+  float ecMax;              // Bom dinh duong OFF neu tren
 };
 
 /**
- * PlantZone - Complete management of one growing zone
- * Includes: Air sensors, Soil sensors, Hydro sensors, All actuators
+ * PlantZone - Quan ly mot vung trong
+ * Bao gom: Cam bien, Thiet bi dieu khien
  */
 class PlantZone {
 private:
-  // Zone ID (0 = Zone 1, 1 = Zone 2, etc.)
-  uint8_t zoneId;
+  // Zone ID (0 = Vung 1, 1 = Vung 2, ...)
+  uint8_t maVung;
   
-  // Shared hardware references
+  // Thiet bi chia se
   TFT_eSPI* tft;
   Adafruit_PWMServoDriver* pwm;
-  MuxManager* mux;
   
-  // Shared environment sensors (static, shared across all zones)
+  // Cam bien moi truong chia se (static)
   static DHT* sharedDHT;
   
-  // Zone-specific hardware
-  DHT* dht;  // Points to sharedDHT for all zones
-  Adafruit_NeoPixel* ledRing; // Handling daisy-chained Heat, Mist, Grow (36 pixels total)
+  // Thiet bi rieng cua vung
+  DHT* dht;
+  Adafruit_NeoPixel* vongLed;
   
-  // Pin assignments
+  // Chan GPIO
   uint8_t pinDHT;
   uint8_t pinLDR;
-  uint8_t pinBuzzer;  // Zone-specific buzzer
-  uint8_t pinLedRing;
+  uint8_t pinChuong;
+  uint8_t pinVongLed;
   
-  // PCA9685 channels
-  uint8_t pwmChFan;
-  uint8_t pwmChWater;
-  uint8_t pwmChN;
-  uint8_t pwmChP;
-  uint8_t pwmChK;
-  uint8_t pwmChNutrient;
+  // Kenh PCA9685
+  uint8_t kenhQuat;
+  uint8_t kenhBomNuoc;
+  uint8_t kenhBomN;
+  uint8_t kenhBomP;
+  uint8_t kenhBomK;
+  uint8_t kenhBomDinhDuong;
   
-  // Current plant profile
-  PlantProfile* profile;
+  // Cau hinh cay hien tai
+  PlantProfile* cauHinh;
   
-  // Sensor readings
-  float temperature;
-  float humidity;
-  int lightLevel;
-  int moisture;
-  float soilPH;
-  int nitrogen;
-  int phosphorus;
-  int potassium;
-  float hydroEC;
+  // Gia tri cam bien
+  float nhietDo;
+  float doAmKK;
+  int anhSang;
+  int doAmDat;
+  float phDat;
+  int n;
+  int p;
+  int k;
+  float ec;
   
-  // Actuator states
-  bool fanActive;
-  bool heatActive;
-  bool mistActive;
-  bool growActive;
-  bool waterActive;
-  bool nActive;
-  bool pActive;
-  bool kActive;
-  bool nutrientActive;
-  bool alarmActive;
+  // Trang thai thiet bi
+  bool quatChay;
+  bool suoiChay;
+  bool phunSuongChay;
+  bool denChay;
+  bool bomNuocChay;
+  bool bomNChay;
+  bool bomPChay;
+  bool bomKChay;
+  bool bomDinhDuongChay;
+  bool canhBao;
   
-  // Simulation offsets (for physics simulation)
-  float simTempOffset;
-  float simHumOffset;
-  float simMoistOffset;
-  float simNOffset;
-  float simPOffset;
-  float simKOffset;
-  float simECOffset;
+  // Offset mo phong (physics simulation)
+  float offsetNhietDo;
+  float offsetDoAmKK;
+  float offsetDoAmDat;
+  float offsetN;
+  float offsetP;
+  float offsetK;
+  float offsetEC;
   
-  // Previous raw values (for manual change detection)
-  float prevRawTemp;
-  float prevRawHum;
-  int prevRawMoist;
-  int prevRawN;
-  int prevRawP;
-  int prevRawK;
-  int prevRawEC;
+  // Gia tri raw truoc do (de phat hien thay doi)
+  float rawNhietDoTruoc;
+  float rawDoAmKKTruoc;
+  int rawDoAmDatTruoc;
+  int rawNTruoc;
+  int rawPTruoc;
+  int rawKTruoc;
+  int rawECTruoc;
   
-  // Servo animation states
-  int servoFanPos, servoFanDir;
-  int servoWaterPos, servoWaterDir;
-  int servoNPos, servoNDir;
-  int servoPPos, servoPDir;
-  int servoKPos, servoKDir;
-  int servoNutrientPos, servoNutrientDir;
+  // Trang thai servo animation
+  int viTriServoQuat, huongServoQuat;
+  int viTriServoBomNuoc, huongServoBomNuoc;
+  int viTriServoBomN, huongServoBomN;
+  int viTriServoBomP, huongServoBomP;
+  int viTriServoBomK, huongServoBomK;
+  int viTriServoBomDinhDuong, huongServoBomDinhDuong;
   
-  // Performance optimization timers
-  unsigned long lastUpdateTFT;
-  unsigned long lastReadDHT;
+  // Timer toi uu hoa
+  unsigned long lanCapNhatTFT;
+  unsigned long lanDocDHT;
   
-  // Stored values for change detection
-  float lastDispTemp;
-  float lastDispHum;
-  int lastDispLight;
-  int lastDispMoist;
-  float lastDispPH;
-  int lastDispN, lastDispP, lastDispK;
-  float lastDispEC;
-  bool lastDispAlarm;
+  // Gia tri hien thi truoc do (de phat hien thay doi)
+  float hienThiNhietDoTruoc;
+  float hienThiDoAmKKTruoc;
+  int hienThiAnhSangTruoc;
+  int hienThiDoAmDatTruoc;
+  float hienThiPHTruoc;
+  int hienThiNTruoc, hienThiPTruoc, hienThiKTruoc;
+  float hienThiECTruoc;
+  bool hienThiCanhBaoTruoc;
   
-  // Auto/Manual mode
-  bool isAutoMode;
+  // Che do Tu dong/Thu cong
+  bool cheTuDong;
   
-  // Helper methods
-  void readSensors();
-  void controlActuators();
-  void updateDisplay(int yOffset);
+  // Phuong thuc helper
+  void docCamBien();
+  void dieuKhienThietBi();
+  void capNhatManHinh(int yOffset);
   
-  // Individual actuator controls
-  void controlFan();
-  void controlHeat();
-  void controlMist();
-  void controlGrow();
-  void controlWater();
-  void controlN();
-  void controlP();
-  void controlK();
-  void controlNutrient();
-  void checkAlarm();
-  void updateBuzzer();  // Zone-specific buzzer control
+  // Dieu khien tung thiet bi
+  void dieuKhienQuat();
+  void dieuKhienSuoi();
+  void dieuKhienPhunSuong();
+  void dieuKhienDen();
+  void dieuKhienBomNuoc();
+  void dieuKhienBomN();
+  void dieuKhienBomP();
+  void dieuKhienBomK();
+  void dieuKhienBomDinhDuong();
+  void kiemTraCanhBao();
+  void capNhatChuong();
   
+  // Phuong thuc helper tai su dung
+  void animateServo(bool dangChay, int& viTri, int& huong, uint8_t kenh);
+  void datMauVongLed(int pixelDau, int pixelCuoi, bool dangChay, uint8_t r, uint8_t g, uint8_t b);
+
 public:
-  PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* servo, MuxManager* multiplexer);
+  PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* servo);
   ~PlantZone();
   
   void begin();
   void update(int displayYOffset = 0);
   
-  // Profile management
-  void setProfile(PlantProfile* newProfile);
-  PlantProfile* getProfile() { return profile; }
+  // Quan ly cau hinh cay
+  void setCauHinh(PlantProfile* cauHinhMoi);
+  PlantProfile* getCauHinh() { return cauHinh; }
   
-  // Mode control
-  void setAutoMode(bool enabled) { isAutoMode = enabled; }
-  bool getAutoMode() { return isAutoMode; }
+  // Dieu khien che do
+  void setCheTuDong(bool batTuDong) { cheTuDong = batTuDong; }
+  bool getCheTuDong() { return cheTuDong; }
   
-  // Manual actuator control (when not in auto mode)
-  void setFan(bool on);
-  void setHeat(bool on);
-  void setMist(bool on);
-  void setGrow(bool on);
-  void setWater(bool on);
-  void setNutrient(bool on);
+  // Dieu khien thu cong (khi khong o che do tu dong)
+  void batTatQuat(bool bat);
+  void batTatSuoi(bool bat);
+  void batTatPhunSuong(bool bat);
+  void batTatDen(bool bat);
+  void batTatBomNuoc(bool bat);
+  void batTatBomDinhDuong(bool bat);
   
-  // Getters for sensor values
-  float getTemperature() { return temperature; }
-  float getHumidity() { return humidity; }
-  int getLightLevel() { return lightLevel; }
-  int getMoisture() { return moisture; }
-  float getSoilPH() { return soilPH; }
-  int getNitrogen() { return nitrogen; }
-  int getPhosphorus() { return phosphorus; }
-  int getPotassium() { return potassium; }
-  float getHydroEC() { return hydroEC; }
+  // Lay gia tri cam bien
+  float getNhietDo() { return nhietDo; }
+  float getDoAmKK() { return doAmKK; }
+  int getAnhSang() { return anhSang; }
+  int getDoAmDat() { return doAmDat; }
+  float getPHDat() { return phDat; }
+  int getN() { return n; }
+  int getP() { return p; }
+  int getK() { return k; }
+  float getEC() { return ec; }
   
-  // Getters for actuator states
-  bool isFanActive() { return fanActive; }
-  bool isHeatActive() { return heatActive; }
-  bool isMistActive() { return mistActive; }
-  bool isGrowActive() { return growActive; }
-  bool isWaterActive() { return waterActive; }
-  bool isNutrientActive() { return nutrientActive; }
-  bool isAlarmActive() { return alarmActive; }
+  // Lay trang thai thiet bi
+  bool laQuatChay() { return quatChay; }
+  bool laSuoiChay() { return suoiChay; }
+  bool laPhunSuongChay() { return phunSuongChay; }
+  bool laDenChay() { return denChay; }
+  bool laBomNuocChay() { return bomNuocChay; }
+  bool laBomDinhDuongChay() { return bomDinhDuongChay; }
+  bool laCanhBao() { return canhBao; }
+  
+  // Backward compatibility (for MenuSystem)
+  bool getAutoMode() { return cheTuDong; }
+  void setAutoMode(bool enabled) { cheTuDong = enabled; }
+  PlantProfile* getProfile() { return cauHinh; }
+  bool isAlarmActive() { return canhBao; }
 };
 
-// Predefined plant profiles
-extern PlantProfile PROFILE_LETTUCE;
-extern PlantProfile PROFILE_STRAWBERRY;
-extern PlantProfile PROFILE_TOMATO;
+// Cau hinh cay da dinh nghia
+extern PlantProfile CAU_HINH_XA_LACH;
+extern PlantProfile CAU_HINH_DAU_TAY;
+extern PlantProfile CAU_HINH_CA_CHUA;
 
 #endif // PLANT_ZONE_H

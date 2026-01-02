@@ -3,7 +3,6 @@
 
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
-#include "KeypadManager.h"
 #include "PlantZone.h"
 
 // Define states
@@ -17,7 +16,6 @@ enum MenuState {
 class MenuSystem {
 private:
     Adafruit_SSD1306* display;
-    KeypadManager* keypad;
     PlantZone* zone1;
     PlantZone* zone2;
     MenuState currentState;
@@ -34,7 +32,7 @@ private:
     int settingIndex = 0;
     
 public:
-    MenuSystem(Adafruit_SSD1306* display, KeypadManager* keypad);
+    MenuSystem(Adafruit_SSD1306* display);
     void begin(PlantZone* z1, PlantZone* z2);
     void update();
     void drawLogin();
@@ -42,6 +40,12 @@ public:
     void handleInput(char key);
     bool isLoggedIn();
     void refresh();
+    
+    // For webapp control
+    void setSelectedZone(int zone) { selectedZone = zone; }
+    int getSelectedZone() { return selectedZone; }
+    MenuState getState() { return currentState; }
+    void setState(MenuState state) { currentState = state; }
 };
 
 #endif

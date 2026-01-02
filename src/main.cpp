@@ -4,7 +4,6 @@
 #include <Adafruit_SSD1306.h>
 #include <TFT_eSPI.h>
 #include <Adafruit_PWMServoDriver.h>
-#include "MuxManager.h"
 #include "PlantZone.h"
 
 // ==================== HARDWARE INSTANCES ====================
@@ -18,9 +17,6 @@ TFT_eSPI tft = TFT_eSPI();
 // PCA9685 PWM Servo Driver (I2C)
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// Multiplexer Manager (MUX1 for shared sensors)
-MuxManager mux;
-
 // ==================== ZONES ====================
 
 PlantZone* zone1 = nullptr;
@@ -28,11 +24,11 @@ PlantZone* zone2 = nullptr;
 
 // ==================== UI ====================
 
-int currentProfileIndex = 0;
-PlantProfile* profiles[] = { &PROFILE_LETTUCE, &PROFILE_STRAWBERRY, &PROFILE_TOMATO };
-const int NUM_PROFILES = 3;
+int chiSoCauHinhHienTai = 0;
+PlantProfile* danhSachCauHinh[] = { &CAU_HINH_XA_LACH, &CAU_HINH_DAU_TAY, &CAU_HINH_CA_CHUA };
+const int SO_CAU_HINH = 3;
 
-int selectedZoneBtn = 0;
+int nutVungDuocChon = 0;
 
 // ==================== TFT CS PIN CONTROL ====================
 
@@ -83,10 +79,6 @@ void setup() {
   delay(100);
   Serial.println("[OK] PCA9685 initialized");
   
-  // Initialize MUX
-  // mux.begin();
-  // delay(100);
-  
   // ====== Initialize OLED Display (System Monitor) ======
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { 
     Serial.println(F("[ERR] SSD1306 allocation failed"));
@@ -130,15 +122,15 @@ void setup() {
   Serial.println("[OK] TFT Displays initialized and cleared");
   
   // ====== Initialize Zones ======
-  Serial.println("Initializing Plant Zones...");
+  Serial.println("Dang khoi tao cac Vung trong...");
   
-  zone1 = new PlantZone(0, &tft, &pwm, &mux);
+  zone1 = new PlantZone(0, &tft, &pwm);
   zone1->begin();
-  zone1->setProfile(&PROFILE_LETTUCE);
+  zone1->setCauHinh(&CAU_HINH_XA_LACH);
   
-  zone2 = new PlantZone(1, &tft, &pwm, &mux);
+  zone2 = new PlantZone(1, &tft, &pwm);
   zone2->begin();
-  zone2->setProfile(&PROFILE_STRAWBERRY);
+  zone2->setCauHinh(&CAU_HINH_DAU_TAY);
   
   Serial.println("[OK] All systems initialized");
   Serial.println("===========================================\n");

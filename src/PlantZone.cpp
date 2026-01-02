@@ -1,54 +1,53 @@
 #include "PlantZone.h"
 
-// ==================== SIMULATION CONSTANTS ====================
-// From simulation_logic.md backup
+// ==================== HANG SO MO PHONG ====================
 
-// Temperature rates (°C per cycle)
-const float TEMP_COOLING_RATE = 0.15f;
-const float TEMP_HEATING_RATE = 0.15f;
-const float TEMP_RECOVERY_RATE = 0.05f;
+// Toc do thay doi nhiet do (°C moi chu ky)
+const float TOC_DO_LAM_MAT = 0.15f;
+const float TOC_DO_LAM_NONG = 0.15f;
+const float TOC_DO_PHUC_HOI_NHIET = 0.05f;
 
-// Humidity rates (% per cycle)
-const float HUM_INCREASE_RATE = 0.3f;
-const float HUM_DECREASE_RATE = 0.1f;
+// Toc do thay doi do am (% moi chu ky)
+const float TOC_DO_TANG_DO_AM = 0.3f;
+const float TOC_DO_GIAM_DO_AM = 0.1f;
 
-// Moisture rates (% per cycle)
-const float MOIST_INCREASE_RATE = 0.5f;
-const float MOIST_DECREASE_RATE = 0.1f;
+// Toc do thay doi do am dat (% moi chu ky)
+const float TOC_DO_TANG_DO_AM_DAT = 0.5f;
+const float TOC_DO_GIAM_DO_AM_DAT = 0.1f;
 
-// Nutrient rates (mg/kg per cycle)
-const float NUTRIENT_INCREASE_RATE = 0.8f;
-const float NUTRIENT_DECREASE_RATE = 0.2f;
+// Toc do thay doi dinh duong (mg/kg moi chu ky)
+const float TOC_DO_TANG_DINH_DUONG = 0.8f;
+const float TOC_DO_GIAM_DINH_DUONG = 0.2f;
 
-// EC rates (mS/cm per cycle)
-const float EC_INCREASE_RATE = 0.05f;
-const float EC_DECREASE_RATE = 0.01f;
+// Toc do thay doi EC (mS/cm moi chu ky)
+const float TOC_DO_TANG_EC = 0.05f;
+const float TOC_DO_GIAM_EC = 0.01f;
 
-// Hysteresis values
-const float TEMP_HYSTERESIS = 2.0f;
-const float HUM_HYSTERESIS = 5.0f;
-const int LIGHT_HYSTERESIS = 10;
-const int MOIST_HYSTERESIS = 10;
-const int NUTRIENT_HYSTERESIS = 30;
-const float EC_HYSTERESIS = 0.2f;
+// Nguong tre (Hysteresis)
+const float TRE_NHIET_DO = 2.0f;
+const float TRE_DO_AM_KK = 5.0f;
+const int TRE_ANH_SANG = 10;
+const int TRE_DO_AM_DAT = 10;
+const int TRE_DINH_DUONG = 30;
+const float TRE_EC = 0.2f;
 
-// ==================== PLANT PROFILES ====================
+// ==================== CAU HINH CAY ====================
 
-PlantProfile PROFILE_LETTUCE = {
+PlantProfile CAU_HINH_XA_LACH = {
   "XA LACH",
-  28.0f, 15.0f, 60, 30,           // Air: tempMax, tempMin, humMin, lightMin
-  80, 5.5f, 7.0f, 300, 200, 200,  // Soil: moistMin, phMin, phMax, N, P, K
-  1.2f, 2.0f                       // Hydro: ecMin, ecMax
+  28.0f, 15.0f, 60, 30,           // Khong khi: nhietDoMax, nhietDoMin, doAmKKMin, anhSangMin
+  80, 5.5f, 7.0f, 300, 200, 200,  // Dat: doAmDatMin, phMin, phMax, nMin, pMin, kMin
+  1.2f, 2.0f                       // Thuy canh: ecMin, ecMax
 };
 
-PlantProfile PROFILE_STRAWBERRY = {
+PlantProfile CAU_HINH_DAU_TAY = {
   "DAU TAY",
   24.0f, 12.0f, 65, 35,
   65, 5.5f, 6.5f, 250, 250, 300,
   1.0f, 1.8f
 };
 
-PlantProfile PROFILE_TOMATO = {
+PlantProfile CAU_HINH_CA_CHUA = {
   "CA CHUA",
   30.0f, 18.0f, 55, 40,
   70, 6.0f, 7.0f, 200, 250, 350,
@@ -57,662 +56,661 @@ PlantProfile PROFILE_TOMATO = {
 
 // ==================== STATIC MEMBERS ====================
 
-// Shared DHT sensor across all zones
 DHT* PlantZone::sharedDHT = nullptr;
 
 // ==================== CONSTRUCTOR / DESTRUCTOR ====================
 
-PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* servo, MuxManager* multiplexer) {
-  zoneId = id;
+PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* servo) {
+  maVung = id;
   tft = display;
   pwm = servo;
-  mux = multiplexer;
   
   dht = nullptr;
-  ledRing = nullptr;
+  vongLed = nullptr;
   
-  // ESP32 DevKit V1 - Shared Environment Edition
-  // All zones share the same environment sensors
+  // ESP32 DevKit V1 - Chia se moi truong
+  // Tat ca cac vung dung chung cam bien moi truong
   
-  // Shared sensor pins (only Zone 0 initializes, Zone 1 reads same values)
-  pinDHT = 25;      // Shared DHT22
-  pinLDR = 36;      // Shared LDR (VP)
+  // Chan cam bien chia se (Vung 0 khoi tao, Vung 1 doc cung gia tri)
+  pinDHT = 25;      // DHT22 chia se
+  pinLDR = 36;      // LDR chia se (VP)
   
-  // Zone-specific actuator pins
-  if (zoneId == 0) {
-    pinBuzzer = 4;   // Moved from 33 to free up ADC pin
-    pinLedRing = 12;
+  // Chan thiet bi rieng cua tung vung
+  if (maVung == 0) {
+    pinChuong = 4;
+    pinVongLed = 12;
   } else {
-    pinBuzzer = 5;   // Moved from 32 to free up ADC pin
-    pinLedRing = 13;
+    pinChuong = 5;
+    pinVongLed = 13;
   }
   
+  // Kenh PCA9685
+  kenhQuat = maVung * 6;
+  kenhBomNuoc = maVung * 6 + 1;
+  kenhBomN = maVung * 6 + 2;
+  kenhBomP = maVung * 6 + 3;
+  kenhBomK = maVung * 6 + 4;
+  kenhBomDinhDuong = maVung * 6 + 5;
   
-  // PCA9685 channels
-  pwmChFan = zoneId * 6;
-  pwmChWater = zoneId * 6 + 1;
-  pwmChN = zoneId * 6 + 2;
-  pwmChP = zoneId * 6 + 3;
-  pwmChK = zoneId * 6 + 4;
-  pwmChNutrient = zoneId * 6 + 5;
+  // Khoi tao gia tri cam bien
+  nhietDo = 25.0f;
+  doAmKK = 50.0f;
+  anhSang = 50;
+  doAmDat = 50;
+  phDat = 6.5f;
+  n = 300;
+  p = 200;
+  k = 250;
+  ec = 1.5f;
   
-  // Initialize sensor values
-  temperature = 25.0f;
-  humidity = 50.0f;
-  lightLevel = 50;
-  moisture = 50;
-  soilPH = 6.5f;
-  nitrogen = 300;
-  phosphorus = 200;
-  potassium = 250;
-  hydroEC = 1.5f;
+  // Khoi tao trang thai thiet bi
+  quatChay = false;
+  suoiChay = false;
+  phunSuongChay = false;
+  denChay = false;
+  bomNuocChay = false;
+  bomNChay = false;
+  bomPChay = false;
+  bomKChay = false;
+  bomDinhDuongChay = false;
+  canhBao = false;
   
-  // Initialize actuator states
-  fanActive = false;
-  heatActive = false;
-  mistActive = false;
-  growActive = false;
-  waterActive = false;
-  nActive = false;
-  pActive = false;
-  kActive = false;
-  nutrientActive = false;
-  alarmActive = false;
+  // Khoi tao offset mo phong
+  offsetNhietDo = 0;
+  offsetDoAmKK = 0;
+  offsetDoAmDat = 0;
+  offsetN = 0;
+  offsetP = 0;
+  offsetK = 0;
+  offsetEC = 0;
   
-  // Initialize simulation offsets
-  simTempOffset = 0;
-  simHumOffset = 0;
-  simMoistOffset = 0;
-  simNOffset = 0;
-  simPOffset = 0;
-  simKOffset = 0;
-  simECOffset = 0;
+  // Khoi tao gia tri raw truoc do
+  rawNhietDoTruoc = 25.0f;
+  rawDoAmKKTruoc = 50.0f;
+  rawDoAmDatTruoc = 2048;
+  rawNTruoc = 2048;
+  rawPTruoc = 2048;
+  rawKTruoc = 2048;
+  rawECTruoc = 2048;
   
-  // Initialize previous raw values
-  prevRawTemp = 25.0f;
-  prevRawHum = 50.0f;
-  prevRawMoist = 2048;
-  prevRawN = 2048;
-  prevRawP = 2048;
-  prevRawK = 2048;
-  prevRawEC = 2048;
+  // Khoi tao trang thai servo
+  viTriServoQuat = 90; huongServoQuat = 1;
+  viTriServoBomNuoc = 90; huongServoBomNuoc = 1;
+  viTriServoBomN = 90; huongServoBomN = 1;
+  viTriServoBomP = 90; huongServoBomP = 1;
+  viTriServoBomK = 90; huongServoBomK = 1;
+  viTriServoBomDinhDuong = 90; huongServoBomDinhDuong = 1;
   
-  // Initialize servo states
-  servoFanPos = 90; servoFanDir = 1;
-  servoWaterPos = 90; servoWaterDir = 1;
-  servoNPos = 90; servoNDir = 1;
-  servoPPos = 90; servoPDir = 1;
-  servoKPos = 90; servoKDir = 1;
-  servoNutrientPos = 90; servoNutrientDir = 1;
+  // Mac dinh che do tu dong
+  cheTuDong = true;
   
-  // Default to auto mode
-  isAutoMode = true;
+  // Cau hinh mac dinh
+  cauHinh = &CAU_HINH_XA_LACH;
   
-  // Default profile
-  profile = &PROFILE_LETTUCE;
-  
-  // Performance optimization
-  lastUpdateTFT = 0;
-  lastReadDHT = 0;
-  lastDispTemp = -999;
-  lastDispHum = -999;
-  lastDispLight = -999;
-  lastDispMoist = -999;
-  lastDispPH = -999;
-  lastDispN = -999; lastDispP = -999; lastDispK = -999;
-  lastDispEC = -999;
-  lastDispAlarm = false;
+  // Toi uu hoa hieu suat
+  lanCapNhatTFT = 0;
+  lanDocDHT = 0;
+  hienThiNhietDoTruoc = -999;
+  hienThiDoAmKKTruoc = -999;
+  hienThiAnhSangTruoc = -999;
+  hienThiDoAmDatTruoc = -999;
+  hienThiPHTruoc = -999;
+  hienThiNTruoc = -999; hienThiPTruoc = -999; hienThiKTruoc = -999;
+  hienThiECTruoc = -999;
+  hienThiCanhBaoTruoc = false;
 }
 
 PlantZone::~PlantZone() {
   if (dht) delete dht;
-  if (ledRing) delete ledRing;
+  if (vongLed) delete vongLed;
 }
 
 void PlantZone::begin() {
-  // Initialize shared DHT22 (only once for all zones)
+  // Khoi tao DHT22 chia se (chi 1 lan cho tat ca vung)
   if (sharedDHT == nullptr) {
     sharedDHT = new DHT(pinDHT, DHT22);
     sharedDHT->begin();
-    Serial.println("[Shared] DHT22 initialized");
+    Serial.println("[Chia se] DHT22 da khoi tao");
   }
-  dht = sharedDHT;  // Point to shared sensor
+  dht = sharedDHT;
   
-  // Initialize daisy-chained LED rings
-  ledRing = new Adafruit_NeoPixel(36, pinLedRing, NEO_GRB + NEO_KHZ800);
-  ledRing->begin();
+  // Khoi tao vong LED daisy-chain
+  vongLed = new Adafruit_NeoPixel(36, pinVongLed, NEO_GRB + NEO_KHZ800);
+  vongLed->begin();
   delay(50);
-  ledRing->clear(); 
-  ledRing->show();
+  vongLed->clear(); 
+  vongLed->show();
   delay(50);
   
-  // Initialize LDR pin (shared, but pinMode is harmless to call multiple times)
+  // Khoi tao chan LDR
   pinMode(pinLDR, INPUT);
   
-  // Initialize buzzer pin
-  pinMode(pinBuzzer, OUTPUT);
-  digitalWrite(pinBuzzer, LOW);
+  // Khoi tao chan chuong
+  pinMode(pinChuong, OUTPUT);
+  digitalWrite(pinChuong, LOW);
   
-  // Stop all servos at center position
-  pwm->setPWM(pwmChFan, 0, 375);
-  pwm->setPWM(pwmChWater, 0, 375);
-  pwm->setPWM(pwmChN, 0, 375);
-  pwm->setPWM(pwmChP, 0, 375);
-  pwm->setPWM(pwmChK, 0, 375);
-  pwm->setPWM(pwmChNutrient, 0, 375);
+  // Dung tat ca servo o vi tri giua
+  pwm->setPWM(kenhQuat, 0, 375);
+  pwm->setPWM(kenhBomNuoc, 0, 375);
+  pwm->setPWM(kenhBomN, 0, 375);
+  pwm->setPWM(kenhBomP, 0, 375);
+  pwm->setPWM(kenhBomK, 0, 375);
+  pwm->setPWM(kenhBomDinhDuong, 0, 375);
   
-  Serial.printf("PlantZone %d: Initialized (Shared Environment)\n", zoneId + 1);
+  Serial.printf("PlantZone %d: Da khoi tao (Moi truong chia se)\n", maVung + 1);
 }
 
-void PlantZone::setProfile(PlantProfile* newProfile) {
-  profile = newProfile;
-  Serial.printf("Zone %d: Profile changed to %s\n", zoneId + 1, profile->name);
+void PlantZone::setCauHinh(PlantProfile* cauHinhMoi) {
+  cauHinh = cauHinhMoi;
+  Serial.printf("Vung %d: Cau hinh thay doi thanh %s\n", maVung + 1, cauHinh->ten);
 }
 
-// ==================== SENSOR READING ====================
+// ==================== DOC CAM BIEN ====================
 
-void PlantZone::readSensors() {
-  // Read DHT22 only every 2 seconds (Shared Environment optimization)
-  if (millis() - lastReadDHT > 2000) {
-    float rawTemp = dht->readTemperature();
-    float rawHum = dht->readHumidity();
+void PlantZone::docCamBien() {
+  // Doc DHT22 moi 2 giay (toi uu hoa)
+  if (millis() - lanDocDHT > 2000) {
+    float rawNhietDo = dht->readTemperature();
+    float rawDoAmKK = dht->readHumidity();
     
-    if (!isnan(rawTemp)) {
-      float tempDelta = abs(rawTemp - prevRawTemp);
-      if (tempDelta > 2.0f) {
-        simTempOffset = 0;
-        temperature = rawTemp;
+    if (!isnan(rawNhietDo)) {
+      float deltaTemp = abs(rawNhietDo - rawNhietDoTruoc);
+      if (deltaTemp > 2.0f) {
+        offsetNhietDo = 0;
+        nhietDo = rawNhietDo;
       } else {
-        temperature = rawTemp + simTempOffset;
+        nhietDo = rawNhietDo + offsetNhietDo;
       }
-      prevRawTemp = rawTemp;
+      rawNhietDoTruoc = rawNhietDo;
     }
     
-    if (!isnan(rawHum)) {
-      float humDelta = abs(rawHum - prevRawHum);
-      if (humDelta > 5.0f) {
-        simHumOffset = 0;
-        humidity = rawHum;
+    if (!isnan(rawDoAmKK)) {
+      float deltaHum = abs(rawDoAmKK - rawDoAmKKTruoc);
+      if (deltaHum > 5.0f) {
+        offsetDoAmKK = 0;
+        doAmKK = rawDoAmKK;
       } else {
-        humidity = rawHum + simHumOffset;
+        doAmKK = rawDoAmKK + offsetDoAmKK;
       }
-      prevRawHum = rawHum;
+      rawDoAmKKTruoc = rawDoAmKK;
     }
-    lastReadDHT = millis();
+    lanDocDHT = millis();
   }
   
-  // Clamp air values
-  temperature = constrain(temperature, -40, 80);
-  humidity = constrain(humidity, 0, 100);
+  // Gioi han gia tri khong khi
+  nhietDo = constrain(nhietDo, -40, 80);
+  doAmKK = constrain(doAmKK, 0, 100);
   
-  // Read LDR (Light level - inverted)
+  // Doc LDR (Anh sang - dao nguoc)
   int ldrRaw = analogRead(pinLDR);
-  lightLevel = map(ldrRaw, 0, 4095, 100, 0);
-  lightLevel = constrain(lightLevel, 0, 100);
+  anhSang = map(ldrRaw, 0, 4095, 100, 0);
+  anhSang = constrain(anhSang, 0, 100);
   
-  // Read soil sensors DIRECTLY from ADC pins (no MUX - for Wokwi stability)
-  // Pin assignments: Moisture=34, pH=35, N=32, P=33, K=39(VN), EC=26
+  // Doc cam bien dat TRUC TIEP tu chan ADC (khong MUX - on dinh hon cho Wokwi)
+  // Phan chan: DoAmDat=34, pH=35, N=32, P=33, K=39(VN), EC=26
   
-  // Moisture (GPIO 34)
-  int rawMoist = analogRead(34);
-  if (abs(rawMoist - prevRawMoist) > 200) {
-    simMoistOffset = 0;
+  // Do am dat (GPIO 34)
+  int rawDoAmDat = analogRead(34);
+  if (abs(rawDoAmDat - rawDoAmDatTruoc) > 200) {
+    offsetDoAmDat = 0;
   }
-  prevRawMoist = rawMoist;
-  moisture = map(rawMoist, 0, 4095, 0, 100) + (int)simMoistOffset;
-  moisture = constrain(moisture, 0, 100);
+  rawDoAmDatTruoc = rawDoAmDat;
+  doAmDat = map(rawDoAmDat, 0, 4095, 0, 100) + (int)offsetDoAmDat;
+  doAmDat = constrain(doAmDat, 0, 100);
   
-  // Soil pH (GPIO 35) - 0 to 14 range
+  // pH dat (GPIO 35) - 0 den 14
   int rawPH = analogRead(35);
-  soilPH = rawPH / 4095.0f * 14.0f;
-  soilPH = constrain(soilPH, 0.0f, 14.0f);
+  phDat = rawPH / 4095.0f * 14.0f;
+  phDat = constrain(phDat, 0.0f, 14.0f);
   
   // Nitrogen (GPIO 32)
   int rawN = analogRead(32);
-  if (abs(rawN - prevRawN) > 100) simNOffset = 0;
-  prevRawN = rawN;
-  nitrogen = map(rawN, 0, 4095, 0, 500) + (int)simNOffset;
-  nitrogen = constrain(nitrogen, 0, 500);
+  if (abs(rawN - rawNTruoc) > 100) offsetN = 0;
+  rawNTruoc = rawN;
+  n = map(rawN, 0, 4095, 0, 500) + (int)offsetN;
+  n = constrain(n, 0, 500);
   
   // Phosphorus (GPIO 33)
   int rawP = analogRead(33);
-  if (abs(rawP - prevRawP) > 100) simPOffset = 0;
-  prevRawP = rawP;
-  phosphorus = map(rawP, 0, 4095, 0, 500) + (int)simPOffset;
-  phosphorus = constrain(phosphorus, 0, 500);
+  if (abs(rawP - rawPTruoc) > 100) offsetP = 0;
+  rawPTruoc = rawP;
+  p = map(rawP, 0, 4095, 0, 500) + (int)offsetP;
+  p = constrain(p, 0, 500);
   
   // Potassium (GPIO 39 = VN)
   int rawK = analogRead(39);
-  if (abs(rawK - prevRawK) > 100) simKOffset = 0;
-  prevRawK = rawK;
-  potassium = map(rawK, 0, 4095, 0, 500) + (int)simKOffset;
-  potassium = constrain(potassium, 0, 500);
+  if (abs(rawK - rawKTruoc) > 100) offsetK = 0;
+  rawKTruoc = rawK;
+  k = map(rawK, 0, 4095, 0, 500) + (int)offsetK;
+  k = constrain(k, 0, 500);
   
-  // Hydro EC (GPIO 26)
+  // EC (GPIO 26)
   int rawEC = analogRead(26);
-  if (abs(rawEC - prevRawEC) > 100) simECOffset = 0;
-  prevRawEC = rawEC;
-  hydroEC = (rawEC / 4095.0f * 3.0f) + simECOffset;
-  hydroEC = constrain(hydroEC, 0.0f, 3.0f);
+  if (abs(rawEC - rawECTruoc) > 100) offsetEC = 0;
+  rawECTruoc = rawEC;
+  ec = (rawEC / 4095.0f * 3.0f) + offsetEC;
+  ec = constrain(ec, 0.0f, 3.0f);
 }
 
-// ==================== ACTUATOR CONTROL ====================
+// ==================== DIEU KHIEN THIET BI ====================
 
-void PlantZone::controlFan() {
-  if (!isAutoMode) return;
-  
-  if (temperature > profile->tempMax) {
-    fanActive = true;
-  } else if (temperature < profile->tempMax - TEMP_HYSTERESIS) {
-    fanActive = false;
-  }
-  
-  if (fanActive) {
-    servoFanPos += servoFanDir * 15;
-    if (servoFanPos >= 180) { servoFanPos = 180; servoFanDir = -1; }
-    if (servoFanPos <= 0) { servoFanPos = 0; servoFanDir = 1; }
-    pwm->setPWM(pwmChFan, 0, map(servoFanPos, 0, 180, 150, 600));
-    simTempOffset -= TEMP_COOLING_RATE;
+// Helper: Animation servo dao dong
+void PlantZone::animateServo(bool dangChay, int& viTri, int& huong, uint8_t kenh) {
+  if (dangChay) {
+    viTri += huong * 15;
+    if (viTri >= 180) { viTri = 180; huong = -1; }
+    if (viTri <= 0) { viTri = 0; huong = 1; }
+    pwm->setPWM(kenh, 0, map(viTri, 0, 180, 150, 600));
   } else {
-    servoFanPos = 90;
-    pwm->setPWM(pwmChFan, 0, 375);
-    if (simTempOffset < 0) simTempOffset += TEMP_RECOVERY_RATE;
+    viTri = 90;
+    pwm->setPWM(kenh, 0, 375);
   }
 }
 
-void PlantZone::controlHeat() {
-  if (!isAutoMode) return;
+// Helper: Dat mau cho doan LED ring
+void PlantZone::datMauVongLed(int pixelDau, int pixelCuoi, bool dangChay, uint8_t r, uint8_t g, uint8_t b) {
+  uint32_t mau = dangChay ? vongLed->Color(r, g, b) : 0;
+  for (int i = pixelDau; i < pixelCuoi; i++) {
+    vongLed->setPixelColor(i, mau);
+  }
+}
+
+void PlantZone::dieuKhienQuat() {
+  if (!cheTuDong) return;
   
-  if (temperature < profile->tempMin) {
-    heatActive = true;
-  } else if (temperature > profile->tempMin + TEMP_HYSTERESIS) {
-    heatActive = false;
+  if (nhietDo > cauHinh->nhietDoMax) {
+    quatChay = true;
+  } else if (nhietDo < cauHinh->nhietDoMax - TRE_NHIET_DO) {
+    quatChay = false;
   }
   
-  if (heatActive) {
-    for (int i = 0; i < 12; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(255, 0, 0));
-    }
-    simTempOffset += TEMP_HEATING_RATE;
+  animateServo(quatChay, viTriServoQuat, huongServoQuat, kenhQuat);
+  
+  if (quatChay) {
+    offsetNhietDo -= TOC_DO_LAM_MAT;
   } else {
-    for (int i = 0; i < 12; i++) ledRing->setPixelColor(i, 0);
-    if (simTempOffset > 0) simTempOffset -= TEMP_RECOVERY_RATE;
+    if (offsetNhietDo < 0) offsetNhietDo += TOC_DO_PHUC_HOI_NHIET;
   }
 }
 
-void PlantZone::controlMist() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienSuoi() {
+  if (!cheTuDong) return;
   
-  if (humidity < profile->humidityMin) {
-    mistActive = true;
-  } else if (humidity > profile->humidityMin + HUM_HYSTERESIS) {
-    mistActive = false;
+  if (nhietDo < cauHinh->nhietDoMin) {
+    suoiChay = true;
+  } else if (nhietDo > cauHinh->nhietDoMin + TRE_NHIET_DO) {
+    suoiChay = false;
   }
   
-  if (mistActive) {
-    for (int i = 12; i < 24; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(0, 255, 255));
-    }
-    simHumOffset += HUM_INCREASE_RATE;
+  datMauVongLed(0, 12, suoiChay, 255, 0, 0);
+  
+  if (suoiChay) {
+    offsetNhietDo += TOC_DO_LAM_NONG;
   } else {
-    for (int i = 12; i < 24; i++) ledRing->setPixelColor(i, 0);
-    if (simHumOffset > 0) simHumOffset -= HUM_DECREASE_RATE;
+    if (offsetNhietDo > 0) offsetNhietDo -= TOC_DO_PHUC_HOI_NHIET;
   }
 }
 
-void PlantZone::controlGrow() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienPhunSuong() {
+  if (!cheTuDong) return;
   
-  if (lightLevel < profile->lightMin) {
-    growActive = true;
-  } else if (lightLevel > profile->lightMin + LIGHT_HYSTERESIS) {
-    growActive = false;
+  if (doAmKK < cauHinh->doAmKKMin) {
+    phunSuongChay = true;
+  } else if (doAmKK > cauHinh->doAmKKMin + TRE_DO_AM_KK) {
+    phunSuongChay = false;
   }
   
-  if (growActive) {
-    for (int i = 24; i < 36; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(255, 0, 255));
-    }
+  datMauVongLed(12, 24, phunSuongChay, 0, 255, 255);
+  
+  if (phunSuongChay) {
+    offsetDoAmKK += TOC_DO_TANG_DO_AM;
   } else {
-    for (int i = 24; i < 36; i++) ledRing->setPixelColor(i, 0);
+    if (offsetDoAmKK > 0) offsetDoAmKK -= TOC_DO_GIAM_DO_AM;
   }
 }
 
-void PlantZone::controlWater() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienDen() {
+  if (!cheTuDong) return;
   
-  if (moisture < profile->moistureMin) {
-    waterActive = true;
-  } else if (moisture > profile->moistureMin + MOIST_HYSTERESIS) {
-    waterActive = false;
+  if (anhSang < cauHinh->anhSangMin) {
+    denChay = true;
+  } else if (anhSang > cauHinh->anhSangMin + TRE_ANH_SANG) {
+    denChay = false;
   }
   
-  if (waterActive) {
-    servoWaterPos += servoWaterDir * 15;
-    if (servoWaterPos >= 180) { servoWaterPos = 180; servoWaterDir = -1; }
-    if (servoWaterPos <= 0) { servoWaterPos = 0; servoWaterDir = 1; }
-    pwm->setPWM(pwmChWater, 0, map(servoWaterPos, 0, 180, 150, 600));
-    simMoistOffset += MOIST_INCREASE_RATE;
+  datMauVongLed(24, 36, denChay, 255, 0, 255);
+}
+
+void PlantZone::dieuKhienBomNuoc() {
+  if (!cheTuDong) return;
+  
+  if (doAmDat < cauHinh->doAmDatMin) {
+    bomNuocChay = true;
+  } else if (doAmDat > cauHinh->doAmDatMin + TRE_DO_AM_DAT) {
+    bomNuocChay = false;
+  }
+  
+  animateServo(bomNuocChay, viTriServoBomNuoc, huongServoBomNuoc, kenhBomNuoc);
+  
+  if (bomNuocChay) {
+    offsetDoAmDat += TOC_DO_TANG_DO_AM_DAT;
   } else {
-    servoWaterPos = 90;
-    pwm->setPWM(pwmChWater, 0, 375);
-    if (simMoistOffset > 0) simMoistOffset -= MOIST_DECREASE_RATE;
+    if (offsetDoAmDat > 0) offsetDoAmDat -= TOC_DO_GIAM_DO_AM_DAT;
   }
 }
 
-void PlantZone::controlN() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienBomN() {
+  if (!cheTuDong) return;
   
-  if (nitrogen < profile->nitrogenMin) {
-    nActive = true;
-  } else if (nitrogen > profile->nitrogenMin + NUTRIENT_HYSTERESIS) {
-    nActive = false;
+  if (n < cauHinh->nMin) {
+    bomNChay = true;
+  } else if (n > cauHinh->nMin + TRE_DINH_DUONG) {
+    bomNChay = false;
   }
   
-  if (nActive) {
-    servoNPos += servoNDir * 15;
-    if (servoNPos >= 180) { servoNPos = 180; servoNDir = -1; }
-    if (servoNPos <= 0) { servoNPos = 0; servoNDir = 1; }
-    pwm->setPWM(pwmChN, 0, map(servoNPos, 0, 180, 150, 600));
-    simNOffset += NUTRIENT_INCREASE_RATE;
+  animateServo(bomNChay, viTriServoBomN, huongServoBomN, kenhBomN);
+  
+  if (bomNChay) {
+    offsetN += TOC_DO_TANG_DINH_DUONG;
   } else {
-    servoNPos = 90;
-    pwm->setPWM(pwmChN, 0, 375);
-    if (simNOffset > 0) simNOffset -= NUTRIENT_DECREASE_RATE;
+    if (offsetN > 0) offsetN -= TOC_DO_GIAM_DINH_DUONG;
   }
 }
 
-void PlantZone::controlP() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienBomP() {
+  if (!cheTuDong) return;
   
-  if (phosphorus < profile->phosphorusMin) {
-    pActive = true;
-  } else if (phosphorus > profile->phosphorusMin + NUTRIENT_HYSTERESIS) {
-    pActive = false;
+  if (p < cauHinh->pMin) {
+    bomPChay = true;
+  } else if (p > cauHinh->pMin + TRE_DINH_DUONG) {
+    bomPChay = false;
   }
   
-  if (pActive) {
-    servoPPos += servoPDir * 15;
-    if (servoPPos >= 180) { servoPPos = 180; servoPDir = -1; }
-    if (servoPPos <= 0) { servoPPos = 0; servoPDir = 1; }
-    pwm->setPWM(pwmChP, 0, map(servoPPos, 0, 180, 150, 600));
-    simPOffset += NUTRIENT_INCREASE_RATE;
+  animateServo(bomPChay, viTriServoBomP, huongServoBomP, kenhBomP);
+  
+  if (bomPChay) {
+    offsetP += TOC_DO_TANG_DINH_DUONG;
   } else {
-    servoPPos = 90;
-    pwm->setPWM(pwmChP, 0, 375);
-    if (simPOffset > 0) simPOffset -= NUTRIENT_DECREASE_RATE;
+    if (offsetP > 0) offsetP -= TOC_DO_GIAM_DINH_DUONG;
   }
 }
 
-void PlantZone::controlK() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienBomK() {
+  if (!cheTuDong) return;
   
-  if (potassium < profile->potassiumMin) {
-    kActive = true;
-  } else if (potassium > profile->potassiumMin + NUTRIENT_HYSTERESIS) {
-    kActive = false;
+  if (k < cauHinh->kMin) {
+    bomKChay = true;
+  } else if (k > cauHinh->kMin + TRE_DINH_DUONG) {
+    bomKChay = false;
   }
   
-  if (kActive) {
-    servoKPos += servoKDir * 15;
-    if (servoKPos >= 180) { servoKPos = 180; servoKDir = -1; }
-    if (servoKPos <= 0) { servoKPos = 0; servoKDir = 1; }
-    pwm->setPWM(pwmChK, 0, map(servoKPos, 0, 180, 150, 600));
-    simKOffset += NUTRIENT_INCREASE_RATE;
+  animateServo(bomKChay, viTriServoBomK, huongServoBomK, kenhBomK);
+  
+  if (bomKChay) {
+    offsetK += TOC_DO_TANG_DINH_DUONG;
   } else {
-    servoKPos = 90;
-    pwm->setPWM(pwmChK, 0, 375);
-    if (simKOffset > 0) simKOffset -= NUTRIENT_DECREASE_RATE;
+    if (offsetK > 0) offsetK -= TOC_DO_GIAM_DINH_DUONG;
   }
 }
 
-void PlantZone::controlNutrient() {
-  if (!isAutoMode) return;
+void PlantZone::dieuKhienBomDinhDuong() {
+  if (!cheTuDong) return;
   
-  if (hydroEC < profile->ecMin) {
-    nutrientActive = true;
-  } else if (hydroEC > profile->ecMax - EC_HYSTERESIS) {
-    nutrientActive = false;
+  if (ec < cauHinh->ecMin) {
+    bomDinhDuongChay = true;
+  } else if (ec > cauHinh->ecMax - TRE_EC) {
+    bomDinhDuongChay = false;
   }
   
-  if (nutrientActive) {
-    servoNutrientPos += servoNutrientDir * 15;
-    if (servoNutrientPos >= 180) { servoNutrientPos = 180; servoNutrientDir = -1; }
-    if (servoNutrientPos <= 0) { servoNutrientPos = 0; servoNutrientDir = 1; }
-    pwm->setPWM(pwmChNutrient, 0, map(servoNutrientPos, 0, 180, 150, 600));
-    simECOffset += EC_INCREASE_RATE;
+  animateServo(bomDinhDuongChay, viTriServoBomDinhDuong, huongServoBomDinhDuong, kenhBomDinhDuong);
+  
+  if (bomDinhDuongChay) {
+    offsetEC += TOC_DO_TANG_EC;
   } else {
-    servoNutrientPos = 90;
-    pwm->setPWM(pwmChNutrient, 0, 375);
-    if (simECOffset > 0) simECOffset -= EC_DECREASE_RATE;
+    if (offsetEC > 0) offsetEC -= TOC_DO_GIAM_EC;
   }
 }
 
-void PlantZone::checkAlarm() {
-  if (soilPH < profile->phMin || soilPH > profile->phMax) {
-    alarmActive = true;
-  } else {
-    alarmActive = false;
+void PlantZone::kiemTraCanhBao() {
+  // Canh bao khi BAT KY chi so nao nam ngoai nguong an toan
+  canhBao = false;
+  
+  // Kiem tra nhiet do (qua nong hoac qua lanh)
+  if (nhietDo > cauHinh->nhietDoMax || nhietDo < cauHinh->nhietDoMin) {
+    canhBao = true;
+  }
+  
+  // Kiem tra do am khong khi (qua thap)
+  if (doAmKK < cauHinh->doAmKKMin) {
+    canhBao = true;
+  }
+  
+  // Kiem tra anh sang (qua toi)
+  if (anhSang < cauHinh->anhSangMin) {
+    canhBao = true;
+  }
+  
+  // Kiem tra do am dat (qua kho)
+  if (doAmDat < cauHinh->doAmDatMin) {
+    canhBao = true;
+  }
+  
+  // Kiem tra pH dat (ngoai nguong)
+  if (phDat < cauHinh->phMin || phDat > cauHinh->phMax) {
+    canhBao = true;
+  }
+  
+  // Kiem tra N, P, K (qua thap)
+  if (n < cauHinh->nMin || p < cauHinh->pMin || k < cauHinh->kMin) {
+    canhBao = true;
+  }
+  
+  // Kiem tra EC (ngoai nguong)
+  if (ec < cauHinh->ecMin || ec > cauHinh->ecMax) {
+    canhBao = true;
   }
 }
 
-void PlantZone::controlActuators() {
-  checkAlarm();
-  controlFan();
-  controlHeat();
-  controlMist();
-  controlGrow();
-  controlWater();
-  controlN();
-  controlP();
-  controlK();
-  controlNutrient();
-  updateBuzzer();  // Zone-specific buzzer
+
+void PlantZone::dieuKhienThietBi() {
+  kiemTraCanhBao();
+  dieuKhienQuat();
+  dieuKhienSuoi();
+  dieuKhienPhunSuong();
+  dieuKhienDen();
+  dieuKhienBomNuoc();
+  dieuKhienBomN();
+  dieuKhienBomP();
+  dieuKhienBomK();
+  dieuKhienBomDinhDuong();
+  capNhatChuong();
   
-  // Update LEDs once per loop for efficiency
-  ledRing->show();
+  // Cap nhat LED mot lan moi vong lap
+  vongLed->show();
 }
 
-void PlantZone::updateBuzzer() {
-  static bool buzzerState = false;
-  static unsigned long lastToggle = 0;
+void PlantZone::capNhatChuong() {
+  static bool trangThaiChuong = false;
+  static unsigned long lanBatTatCuoi = 0;
   
-  if (alarmActive) {
-    // Beep pattern: 200ms on, 200ms off
-    if (millis() - lastToggle > 200) {
-      buzzerState = !buzzerState;
-      if (buzzerState) {
-        tone(pinBuzzer, 2000);
+  if (canhBao) {
+    // Kieu bip: 200ms bat, 200ms tat
+    if (millis() - lanBatTatCuoi > 200) {
+      trangThaiChuong = !trangThaiChuong;
+      if (trangThaiChuong) {
+        tone(pinChuong, 2000);
       } else {
-        noTone(pinBuzzer);
+        noTone(pinChuong);
       }
-      lastToggle = millis();
+      lanBatTatCuoi = millis();
     }
   } else {
-    if (buzzerState) {
-      noTone(pinBuzzer);
-      buzzerState = false;
+    if (trangThaiChuong) {
+      noTone(pinChuong);
+      trangThaiChuong = false;
     }
   }
 }
 
-// ==================== MANUAL CONTROL ====================
+// ==================== DIEU KHIEN THU CONG ====================
 
-void PlantZone::setFan(bool on) {
-  if (isAutoMode) return;
-  fanActive = on;
-  pwm->setPWM(pwmChFan, 0, on ? 400 : 375);
+void PlantZone::batTatQuat(bool bat) {
+  if (cheTuDong) return;
+  quatChay = bat;
+  pwm->setPWM(kenhQuat, 0, bat ? 400 : 375);
 }
 
-void PlantZone::setHeat(bool on) {
-  if (isAutoMode) return;
-  heatActive = on;
-  if (on) {
-    for (int i = 0; i < 12; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(255, 0, 0));
-    }
-  } else {
-    for (int i = 0; i < 12; i++) ledRing->setPixelColor(i, 0);
-  }
-  ledRing->show();
+void PlantZone::batTatSuoi(bool bat) {
+  if (cheTuDong) return;
+  suoiChay = bat;
+  datMauVongLed(0, 12, bat, 255, 0, 0);
+  vongLed->show();
 }
 
-void PlantZone::setMist(bool on) {
-  if (isAutoMode) return;
-  mistActive = on;
-  if (on) {
-    for (int i = 12; i < 24; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(0, 255, 255));
-    }
-  } else {
-    for (int i = 12; i < 24; i++) ledRing->setPixelColor(i, 0);
-  }
-  ledRing->show();
+void PlantZone::batTatPhunSuong(bool bat) {
+  if (cheTuDong) return;
+  phunSuongChay = bat;
+  datMauVongLed(12, 24, bat, 0, 255, 255);
+  vongLed->show();
 }
 
-void PlantZone::setGrow(bool on) {
-  if (isAutoMode) return;
-  growActive = on;
-  if (on) {
-    for (int i = 24; i < 36; i++) {
-      ledRing->setPixelColor(i, ledRing->Color(255, 0, 255));
-    }
-  } else {
-    for (int i = 24; i < 36; i++) ledRing->setPixelColor(i, 0);
-  }
+void PlantZone::batTatDen(bool bat) {
+  if (cheTuDong) return;
+  denChay = bat;
+  datMauVongLed(24, 36, bat, 255, 0, 255);
 }
 
-void PlantZone::setWater(bool on) {
-  if (isAutoMode) return;
-  waterActive = on;
-  pwm->setPWM(pwmChWater, 0, on ? 400 : 375);
+void PlantZone::batTatBomNuoc(bool bat) {
+  if (cheTuDong) return;
+  bomNuocChay = bat;
+  pwm->setPWM(kenhBomNuoc, 0, bat ? 400 : 375);
 }
 
-void PlantZone::setNutrient(bool on) {
-  if (isAutoMode) return;
-  nutrientActive = on;
-  pwm->setPWM(pwmChNutrient, 0, on ? 400 : 375);
+void PlantZone::batTatBomDinhDuong(bool bat) {
+  if (cheTuDong) return;
+  bomDinhDuongChay = bat;
+  pwm->setPWM(kenhBomDinhDuong, 0, bat ? 400 : 375);
 }
 
-// ==================== DISPLAY ====================
+// ==================== HIEN THI ====================
 
-void PlantZone::updateDisplay(int yOffset) {
+void PlantZone::capNhatManHinh(int yOffset) {
   if (!tft) return;
   
   char buffer[50];
   
-  // Only update TFT once every 1000ms to reduce simulation lag
-  if (millis() - lastUpdateTFT < 1000) return;
-  lastUpdateTFT = millis();
+  // Chi cap nhat TFT moi 1000ms de giam lag
+  if (millis() - lanCapNhatTFT < 1000) return;
+  lanCapNhatTFT = millis();
   
   // Header - Size 2
   tft->fillRect(0, yOffset, 240, 24, TFT_DARKGREY);
   tft->setTextColor(TFT_WHITE, TFT_DARKGREY);
   tft->setTextFont(1);
   tft->setTextSize(2);
-  sprintf(buffer, "VUNG %d: %s", zoneId + 1, profile->name);
+  sprintf(buffer, "VUNG %d: %s", maVung + 1, cauHinh->ten);
   tft->drawString(buffer, 5, yOffset + 4);
   
   int y = yOffset + 30;
-  int lineHeight = 18;
+  int chieuCaoDong = 18;
   
-  // Temperature - Only redraw if changed significantly
-  if (abs(temperature - lastDispTemp) > 0.1f) {
+  // Nhiet do - Chi ve lai neu thay doi dang ke
+  if (abs(nhietDo - hienThiNhietDoTruoc) > 0.1f) {
     tft->setTextColor(TFT_YELLOW, TFT_BLACK);
-    sprintf(buffer, "Nhiet do: %.1f do C   ", temperature);
+    sprintf(buffer, "Nhiet do: %.1f do C   ", nhietDo);
     tft->drawString(buffer, 5, y);
-    lastDispTemp = temperature;
+    hienThiNhietDoTruoc = nhietDo;
   }
   
-  // Humidity
-  y += lineHeight;
-  if (abs(humidity - lastDispHum) > 0.5f) {
+  // Do am khong khi
+  y += chieuCaoDong;
+  if (abs(doAmKK - hienThiDoAmKKTruoc) > 0.5f) {
     tft->setTextColor(TFT_BLUE, TFT_BLACK);
-    sprintf(buffer, "Do am KK: %.0f %%      ", humidity);
+    sprintf(buffer, "Do am KK: %.0f %%      ", doAmKK);
     tft->drawString(buffer, 5, y);
-    lastDispHum = humidity;
+    hienThiDoAmKKTruoc = doAmKK;
   }
   
-  // Light
-  y += lineHeight;
-  if (abs(lightLevel - lastDispLight) > 1) {
+  // Anh sang
+  y += chieuCaoDong;
+  if (abs(anhSang - hienThiAnhSangTruoc) > 1) {
     tft->setTextColor(TFT_WHITE, TFT_BLACK);
-    sprintf(buffer, "Anh sang: %d %%       ", lightLevel);
+    sprintf(buffer, "Anh sang: %d %%       ", anhSang);
     tft->drawString(buffer, 5, y);
-    lastDispLight = lightLevel;
+    hienThiAnhSangTruoc = anhSang;
   }
   
-  // Soil moisture
-  y += lineHeight;
-  if (abs(moisture - lastDispMoist) > 1) {
+  // Do am dat
+  y += chieuCaoDong;
+  if (abs(doAmDat - hienThiDoAmDatTruoc) > 1) {
     tft->setTextColor(TFT_CYAN, TFT_BLACK);
-    sprintf(buffer, "Do am dat: %d %%      ", moisture);
+    sprintf(buffer, "Do am dat: %d %%      ", doAmDat);
     tft->drawString(buffer, 5, y);
-    lastDispMoist = moisture;
+    hienThiDoAmDatTruoc = doAmDat;
   }
   
-  // pH
-  y += lineHeight;
-  if (abs(soilPH - lastDispPH) > 0.1f) {
+  // pH dat
+  y += chieuCaoDong;
+  if (abs(phDat - hienThiPHTruoc) > 0.1f) {
     tft->setTextColor(TFT_GREEN, TFT_BLACK);
-    sprintf(buffer, "pH dat: %.1f         ", soilPH);
+    sprintf(buffer, "pH dat: %.1f         ", phDat);
     tft->drawString(buffer, 5, y);
-    lastDispPH = soilPH;
+    hienThiPHTruoc = phDat;
   }
   
   // N
-  y += lineHeight;
-  if (nitrogen != lastDispN) {
+  y += chieuCaoDong;
+  if (n != hienThiNTruoc) {
     tft->setTextColor(TFT_MAGENTA, TFT_BLACK);
-    sprintf(buffer, "N: %d mg/kg          ", nitrogen);
+    sprintf(buffer, "N: %d mg/kg          ", n);
     tft->drawString(buffer, 5, y);
-    lastDispN = nitrogen;
+    hienThiNTruoc = n;
   }
 
   // P
-  y += lineHeight;
-  if (phosphorus != lastDispP) {
+  y += chieuCaoDong;
+  if (p != hienThiPTruoc) {
     tft->setTextColor(TFT_RED, TFT_BLACK);
-    sprintf(buffer, "P: %d mg/kg          ", phosphorus);
+    sprintf(buffer, "P: %d mg/kg          ", p);
     tft->drawString(buffer, 5, y);
-    lastDispP = phosphorus;
+    hienThiPTruoc = p;
   }
 
   // K
-  y += lineHeight;
-  if (potassium != lastDispK) {
+  y += chieuCaoDong;
+  if (k != hienThiKTruoc) {
     tft->setTextColor(TFT_PINK, TFT_BLACK);
-    sprintf(buffer, "K: %d mg/kg          ", potassium);
+    sprintf(buffer, "K: %d mg/kg          ", k);
     tft->drawString(buffer, 5, y);
-    lastDispK = potassium;
+    hienThiKTruoc = k;
   }
 
   // EC
-  y += lineHeight;
-  if (abs(hydroEC - lastDispEC) > 0.05f) {
+  y += chieuCaoDong;
+  if (abs(ec - hienThiECTruoc) > 0.05f) {
     tft->setTextColor(TFT_ORANGE, TFT_BLACK);
-    sprintf(buffer, "EC: %.2f mS/cm       ", hydroEC);
+    sprintf(buffer, "EC: %.2f mS/cm       ", ec);
     tft->drawString(buffer, 5, y);
-    lastDispEC = hydroEC;
+    hienThiECTruoc = ec;
   }
   
-  // Alarm indicator
-  if (alarmActive != lastDispAlarm) {
-    if (alarmActive) {
+  // Chi bao canh bao
+  if (canhBao != hienThiCanhBaoTruoc) {
+    if (canhBao) {
       tft->fillRect(210, yOffset, 30, 24, TFT_RED);
       tft->setTextColor(TFT_WHITE, TFT_RED);
       tft->drawString("!", 218, yOffset + 4);
     } else {
       tft->fillRect(210, yOffset, 30, 24, TFT_DARKGREY);
     }
-    lastDispAlarm = alarmActive;
+    hienThiCanhBaoTruoc = canhBao;
   }
 }
 
-// ==================== MAIN UPDATE ====================
+// ==================== CAP NHAT CHINH ====================
 
 void PlantZone::update(int displayYOffset) {
-  readSensors();
-  controlActuators();
-  updateDisplay(displayYOffset);
+  docCamBien();
+  dieuKhienThietBi();
+  capNhatManHinh(displayYOffset);
 }
