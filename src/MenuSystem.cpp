@@ -85,7 +85,8 @@ void MenuSystem::drawDashboard() {
     
     display->print(F("Cay: "));
     // Cat ngan ten cay cho vua
-    String tenCay = String(z->getProfile()->ten);
+    PlantProfile* p = z->getProfile();
+    String tenCay = (p != nullptr) ? String(p->ten) : "N/A";
     display->println(tenCay.substring(0, 10));
     
     // Sensor Data (Simplified)

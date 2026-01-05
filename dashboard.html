@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro SmartFarm AI Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://www.e-ra.io/era-widget.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #0b1219; --card: #161b22; --accent: #00d2ff; }
+        body { background: var(--bg); color: #c9d1d9; font-family: 'Inter', sans-serif; margin: 0; padding: 15px; }
+        h1 { font-family: 'Orbitron', sans-serif; font-size: 1.2rem; text-align: center; color: #fff; margin-bottom: 20px; text-shadow: 0 0 10px var(--accent); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
+        .card { background: var(--card); border: 1px solid #30363d; border-radius: 12px; padding: 15px; position: relative; }
+        .label { font-size: 0.75rem; font-weight: 600; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; display: block; }
+        
+        /* Device Grid */
+        .actuator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 15px; }
+        .device-node { background: #21262d; border-radius: 8px; padding: 8px; display: flex; align-items: center; gap: 8px; font-size: 0.75rem; border: 1px solid transparent; }
+        .device-node.active { border-color: #3fb950; background: rgba(63, 185, 80, 0.1); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+        .dot.active { background: #3fb950; box-shadow: 0 0 8px #3fb950; }
+        .dot.active-blue { background: #00d2ff; box-shadow: 0 0 8px #00d2ff; }
+    </style>
+</head>
+<body>
+    <h1>SMART FARM LIVE MONITOR</h1>
+    <div class="grid">
+        <!-- Live Sensors Chart -->
+        <div class="card" style="grid-column: span 1;">
+            <span class="label">Climate & Soil Live Data</span>
+            <div id="mainChart"></div>
+        </div>
+
+        <!-- N-P-K Levels (Separate Sensors) -->
+        <div class="card">
+            <span class="label">Nutrient Levels (N-P-K Sensors)</span>
+            <div id="npkChart"></div>
+        </div>
+
+        <!-- System Actuators (Separate Pumps/Devices) -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <span class="label">System Actuators & Individual Pumps</span>
+            <div class="actuator-grid" id="nodeGrid">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const eraWidget = new EraWidget();
+        
+        // Cấu hình Cảm biến chính
+        const SENSORS = { 'temp': 'Temp', 'hum': 'Hum', 'soil': 'Soil' };
+        // Cấu hình Cảm biến NPK (Riêng biệt)
+        const NPK_KEYS = { 'n_val': 'N', 'p_val': 'P', 'k_val': 'K' };
+        // Cấu hình Thiết bị (Bao gồm bơm N-P-K riêng)
+        const DEVICES = {
+            'fan': 'Fan', 'water': 'Water Pump', 'lamp': 'LED Grow',
+            'n_pump': 'Pump N', 'p_pump': 'Pump P', 'k_pump': 'Pump K',
+            'nut_all': 'Nutrient Sys', 'heater': 'Heater', 'mist': 'Mist'
+        };
+
+        let chartData = { temp: Array(20).fill(0), hum: Array(20).fill(0), soil: Array(20).fill(0) };
+
+        // INITIALIZE CHARTS
+        const mainChart = new ApexCharts(document.querySelector("#mainChart"), {
+            series: [{ name: 'Temp', data: chartData.temp }, { name: 'Hum', data: chartData.hum }, { name: 'Soil', data: chartData.soil }],
+            chart: { height: 230, type: 'line', animations: { enabled: true, easing: 'linear', speed: 500 }, toolbar: { show: false } },
+            colors: ['#ff4560', '#008ffb', '#00e396'],
+            stroke: { curve: 'smooth', width: 2 },
+            xaxis: { labels: { show: false } }
+        });
+        mainChart.render();
+
+        const npkChart = new ApexCharts(document.querySelector("#npkChart"), {
+            series: [{ name: 'Value', data: [0, 0, 0] }],
+            chart: { type: 'bar', height: 230, toolbar: { show: false } },
+            plotOptions: { bar: { distributed: true, borderRadius: 4 } },
+            colors: ['#00d2ff', '#ff007a', '#ffa500'],
+            xaxis: { categories: ['N (Nitrogen)', 'P (Phosphorus)', 'K (Potassium)'] }
+        });
+        npkChart.render();
+
+        // MANAGE NODES
+        const grid = document.getElementById('nodeGrid');
+        Object.keys(DEVICES).forEach(key => {
+            grid.innerHTML += `
+                <div class="device-node" id="node-${key}">
+                    <div class="dot" id="dot-${key}"></div> ${DEVICES[key]}
+                </div>
+            `;
+        });
+
+        // UPDATE LOGIC
+        eraWidget.onValuesUpdated((values) => {
+            // Update Sensors Chart
+            Object.keys(SENSORS).forEach(key => {
+                if (values[key]) {
+                    chartData[key].push(values[key].value);
+                    chartData[key].shift();
+                }
+            });
+            mainChart.updateSeries([{ data: chartData.temp }, { data: chartData.hum }, { data: chartData.soil }]);
+
+            // Update NPK Bar Chart (Values from V5, V6, V7)
+            if (values['n_val'] || values['p_val'] || values['k_val']) {
+                npkChart.updateSeries([{
+                    data: [values['n_val']?.value || 0, values['p_val']?.value || 0, values['k_val']?.value || 0]
+                }]);
+            }
+
+            // Update All Actuators (Individual Pumps)
+            Object.keys(DEVICES).forEach(key => {
+                if (values[key]) {
+                    const active = values[key].value == 1;
+                    document.getElementById(`node-${key}`).classList.toggle('active', active);
+                    document.getElementById(`dot-${key}`).classList.toggle(key.includes('pump') ? 'active-blue' : 'active', active);
+                }
+            });
+        });
+
+        eraWidget.ready();
+    </script>
+</body>
+</html>

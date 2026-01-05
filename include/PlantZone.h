@@ -6,31 +6,9 @@
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_PWMServoDriver.h>
 #include <DHT.h>
+#include <WiFi.h>
+#include "ProfileManager.h"
 
-/**
- * PlantProfile - Cau hinh cho tung loai cay
- */
-struct PlantProfile {
-  const char* ten;          // Ten cay
-  
-  // Nguong khong khi
-  float nhietDoMax;         // Quat ON neu vuot
-  float nhietDoMin;         // Suoi ON neu duoi
-  int doAmKKMin;            // Phun suong ON neu duoi
-  int anhSangMin;           // Den ON neu duoi
-  
-  // Nguong dat
-  int doAmDatMin;           // Bom nuoc ON neu duoi
-  float phMin;              // Canh bao neu duoi
-  float phMax;              // Canh bao neu tren
-  int nMin;                 // Bom N ON neu duoi
-  int pMin;                 // Bom P ON neu duoi
-  int kMin;                 // Bom K ON neu duoi
-  
-  // Nguong thuy canh
-  float ecMin;              // Bom dinh duong ON neu duoi
-  float ecMax;              // Bom dinh duong OFF neu tren
-};
 
 /**
  * PlantZone - Quan ly mot vung trong
@@ -137,6 +115,7 @@ private:
   
   // Phuong thuc helper
   void docCamBien();
+  void moPhongVatLy();
   void dieuKhienThietBi();
   void capNhatManHinh(int yOffset);
   
@@ -169,7 +148,7 @@ public:
   PlantProfile* getCauHinh() { return cauHinh; }
   
   // Dieu khien che do
-  void setCheTuDong(bool batTuDong) { cheTuDong = batTuDong; }
+  void setCheTuDong(bool batTuDong);
   bool getCheTuDong() { return cheTuDong; }
   
   // Dieu khien thu cong (khi khong o che do tu dong)
@@ -178,6 +157,9 @@ public:
   void batTatPhunSuong(bool bat);
   void batTatDen(bool bat);
   void batTatBomNuoc(bool bat);
+  void batTatBomN(bool bat);
+  void batTatBomP(bool bat);
+  void batTatBomK(bool bat);
   void batTatBomDinhDuong(bool bat);
   
   // Lay gia tri cam bien
@@ -197,6 +179,9 @@ public:
   bool laPhunSuongChay() { return phunSuongChay; }
   bool laDenChay() { return denChay; }
   bool laBomNuocChay() { return bomNuocChay; }
+  bool laBomNChay() { return bomNChay; }
+  bool laBomPChay() { return bomPChay; }
+  bool laBomKChay() { return bomKChay; }
   bool laBomDinhDuongChay() { return bomDinhDuongChay; }
   bool laCanhBao() { return canhBao; }
   
@@ -207,9 +192,5 @@ public:
   bool isAlarmActive() { return canhBao; }
 };
 
-// Cau hinh cay da dinh nghia
-extern PlantProfile CAU_HINH_XA_LACH;
-extern PlantProfile CAU_HINH_DAU_TAY;
-extern PlantProfile CAU_HINH_CA_CHUA;
-
 #endif // PLANT_ZONE_H
+

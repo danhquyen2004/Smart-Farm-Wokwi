@@ -31,28 +31,6 @@ const int TRE_DO_AM_DAT = 10;
 const int TRE_DINH_DUONG = 30;
 const float TRE_EC = 0.2f;
 
-// ==================== CAU HINH CAY ====================
-
-PlantProfile CAU_HINH_XA_LACH = {
-  "XA LACH",
-  28.0f, 15.0f, 60, 30,           // Khong khi: nhietDoMax, nhietDoMin, doAmKKMin, anhSangMin
-  80, 5.5f, 7.0f, 300, 200, 200,  // Dat: doAmDatMin, phMin, phMax, nMin, pMin, kMin
-  1.2f, 2.0f                       // Thuy canh: ecMin, ecMax
-};
-
-PlantProfile CAU_HINH_DAU_TAY = {
-  "DAU TAY",
-  24.0f, 12.0f, 65, 35,
-  65, 5.5f, 6.5f, 250, 250, 300,
-  1.0f, 1.8f
-};
-
-PlantProfile CAU_HINH_CA_CHUA = {
-  "CA CHUA",
-  30.0f, 18.0f, 55, 40,
-  70, 6.0f, 7.0f, 200, 250, 350,
-  2.0f, 3.0f
-};
 
 // ==================== STATIC MEMBERS ====================
 
@@ -144,8 +122,8 @@ PlantZone::PlantZone(uint8_t id, TFT_eSPI* display, Adafruit_PWMServoDriver* ser
   // Mac dinh che do tu dong
   cheTuDong = true;
   
-  // Cau hinh mac dinh
-  cauHinh = &CAU_HINH_XA_LACH;
+  // Cau hinh se duoc set sau tu ProfileManager
+  cauHinh = nullptr;
   
   // Toi uu hoa hieu suat
   lanCapNhatTFT = 0;
@@ -292,6 +270,50 @@ void PlantZone::docCamBien() {
   ec = constrain(ec, 0.0f, 3.0f);
 }
 
+void PlantZone::moPhongVatLy() {
+  // 1. Cap nhat Nhiet do
+  if (quatChay) {
+    offsetNhietDo -= TOC_DO_LAM_MAT;
+  } else if (suoiChay) {
+    offsetNhietDo += TOC_DO_LAM_NONG;
+  } else {
+    // Tu nhien: tro ve 25 do (ambient)
+    if (offsetNhietDo < 0) offsetNhietDo += TOC_DO_PHUC_HOI_NHIET;
+    else if (offsetNhietDo > 0) offsetNhietDo -= TOC_DO_PHUC_HOI_NHIET;
+  }
+
+  // 2. Cap nhat Do am KK
+  if (phunSuongChay) {
+    offsetDoAmKK += TOC_DO_TANG_DO_AM;
+  } else {
+    if (offsetDoAmKK > 0) offsetDoAmKK -= TOC_DO_GIAM_DO_AM;
+  }
+
+  // 3. Cap nhat Do am dat
+  if (bomNuocChay) {
+    offsetDoAmDat += TOC_DO_TANG_DO_AM_DAT;
+  } else {
+    if (offsetDoAmDat > 0) offsetDoAmDat -= TOC_DO_GIAM_DO_AM_DAT;
+  }
+
+  // 4. Cap nhat Dinh duong N-P-K
+  if (bomNChay) offsetN += TOC_DO_TANG_DINH_DUONG;
+  else if (offsetN > 0) offsetN -= TOC_DO_GIAM_DINH_DUONG;
+
+  if (bomPChay) offsetP += TOC_DO_TANG_DINH_DUONG;
+  else if (offsetP > 0) offsetP -= TOC_DO_GIAM_DINH_DUONG;
+
+  if (bomKChay) offsetK += TOC_DO_TANG_DINH_DUONG;
+  else if (offsetK > 0) offsetK -= TOC_DO_GIAM_DINH_DUONG;
+
+  // 5. Cap nhat EC
+  if (bomDinhDuongChay) {
+    offsetEC += TOC_DO_TANG_EC;
+  } else {
+    if (offsetEC > 0) offsetEC -= TOC_DO_GIAM_EC;
+  }
+}
+
 // ==================== DIEU KHIEN THIET BI ====================
 
 // Helper: Animation servo dao dong
@@ -316,159 +338,111 @@ void PlantZone::datMauVongLed(int pixelDau, int pixelCuoi, bool dangChay, uint8_
 }
 
 void PlantZone::dieuKhienQuat() {
-  if (!cheTuDong) return;
-  
-  if (nhietDo > cauHinh->nhietDoMax) {
-    quatChay = true;
-  } else if (nhietDo < cauHinh->nhietDoMax - TRE_NHIET_DO) {
-    quatChay = false;
+  if (cheTuDong) {
+    if (nhietDo > cauHinh->nhietDoMax) {
+      quatChay = true;
+    } else if (nhietDo < cauHinh->nhietDoMax - TRE_NHIET_DO) {
+      quatChay = false;
+    }
   }
   
   animateServo(quatChay, viTriServoQuat, huongServoQuat, kenhQuat);
-  
-  if (quatChay) {
-    offsetNhietDo -= TOC_DO_LAM_MAT;
-  } else {
-    if (offsetNhietDo < 0) offsetNhietDo += TOC_DO_PHUC_HOI_NHIET;
-  }
 }
 
 void PlantZone::dieuKhienSuoi() {
-  if (!cheTuDong) return;
-  
-  if (nhietDo < cauHinh->nhietDoMin) {
-    suoiChay = true;
-  } else if (nhietDo > cauHinh->nhietDoMin + TRE_NHIET_DO) {
-    suoiChay = false;
+  if (cheTuDong) {
+    if (nhietDo < cauHinh->nhietDoMin) {
+      suoiChay = true;
+    } else if (nhietDo > cauHinh->nhietDoMin + TRE_NHIET_DO) {
+      suoiChay = false;
+    }
   }
   
   datMauVongLed(0, 12, suoiChay, 255, 0, 0);
-  
-  if (suoiChay) {
-    offsetNhietDo += TOC_DO_LAM_NONG;
-  } else {
-    if (offsetNhietDo > 0) offsetNhietDo -= TOC_DO_PHUC_HOI_NHIET;
-  }
 }
 
 void PlantZone::dieuKhienPhunSuong() {
-  if (!cheTuDong) return;
-  
-  if (doAmKK < cauHinh->doAmKKMin) {
-    phunSuongChay = true;
-  } else if (doAmKK > cauHinh->doAmKKMin + TRE_DO_AM_KK) {
-    phunSuongChay = false;
+  if (cheTuDong) {
+    if (doAmKK < cauHinh->doAmKKMin) {
+      phunSuongChay = true;
+    } else if (doAmKK > cauHinh->doAmKKMin + TRE_DO_AM_KK) {
+      phunSuongChay = false;
+    }
   }
   
   datMauVongLed(12, 24, phunSuongChay, 0, 255, 255);
-  
-  if (phunSuongChay) {
-    offsetDoAmKK += TOC_DO_TANG_DO_AM;
-  } else {
-    if (offsetDoAmKK > 0) offsetDoAmKK -= TOC_DO_GIAM_DO_AM;
-  }
 }
 
 void PlantZone::dieuKhienDen() {
-  if (!cheTuDong) return;
-  
-  if (anhSang < cauHinh->anhSangMin) {
-    denChay = true;
-  } else if (anhSang > cauHinh->anhSangMin + TRE_ANH_SANG) {
-    denChay = false;
+  if (cheTuDong) {
+    if (anhSang < cauHinh->anhSangMin) {
+      denChay = true;
+    } else if (anhSang > cauHinh->anhSangMin + TRE_ANH_SANG) {
+      denChay = false;
+    }
   }
   
   datMauVongLed(24, 36, denChay, 255, 0, 255);
 }
 
 void PlantZone::dieuKhienBomNuoc() {
-  if (!cheTuDong) return;
-  
-  if (doAmDat < cauHinh->doAmDatMin) {
-    bomNuocChay = true;
-  } else if (doAmDat > cauHinh->doAmDatMin + TRE_DO_AM_DAT) {
-    bomNuocChay = false;
+  if (cheTuDong) {
+    if (doAmDat < cauHinh->doAmDatMin) {
+      bomNuocChay = true;
+    } else if (doAmDat > cauHinh->doAmDatMin + TRE_DO_AM_DAT) {
+      bomNuocChay = false;
+    }
   }
   
   animateServo(bomNuocChay, viTriServoBomNuoc, huongServoBomNuoc, kenhBomNuoc);
-  
-  if (bomNuocChay) {
-    offsetDoAmDat += TOC_DO_TANG_DO_AM_DAT;
-  } else {
-    if (offsetDoAmDat > 0) offsetDoAmDat -= TOC_DO_GIAM_DO_AM_DAT;
-  }
 }
 
 void PlantZone::dieuKhienBomN() {
-  if (!cheTuDong) return;
-  
-  if (n < cauHinh->nMin) {
-    bomNChay = true;
-  } else if (n > cauHinh->nMin + TRE_DINH_DUONG) {
-    bomNChay = false;
+  if (cheTuDong) {
+    if (n < cauHinh->nMin) {
+      bomNChay = true;
+    } else if (n > cauHinh->nMin + TRE_DINH_DUONG) {
+      bomNChay = false;
+    }
   }
   
   animateServo(bomNChay, viTriServoBomN, huongServoBomN, kenhBomN);
-  
-  if (bomNChay) {
-    offsetN += TOC_DO_TANG_DINH_DUONG;
-  } else {
-    if (offsetN > 0) offsetN -= TOC_DO_GIAM_DINH_DUONG;
-  }
 }
 
 void PlantZone::dieuKhienBomP() {
-  if (!cheTuDong) return;
-  
-  if (p < cauHinh->pMin) {
-    bomPChay = true;
-  } else if (p > cauHinh->pMin + TRE_DINH_DUONG) {
-    bomPChay = false;
+  if (cheTuDong) {
+    if (p < cauHinh->pMin) {
+      bomPChay = true;
+    } else if (p > cauHinh->pMin + TRE_DINH_DUONG) {
+      bomPChay = false;
+    }
   }
   
   animateServo(bomPChay, viTriServoBomP, huongServoBomP, kenhBomP);
-  
-  if (bomPChay) {
-    offsetP += TOC_DO_TANG_DINH_DUONG;
-  } else {
-    if (offsetP > 0) offsetP -= TOC_DO_GIAM_DINH_DUONG;
-  }
 }
 
 void PlantZone::dieuKhienBomK() {
-  if (!cheTuDong) return;
-  
-  if (k < cauHinh->kMin) {
-    bomKChay = true;
-  } else if (k > cauHinh->kMin + TRE_DINH_DUONG) {
-    bomKChay = false;
+  if (cheTuDong) {
+    if (k < cauHinh->kMin) {
+      bomKChay = true;
+    } else if (k > cauHinh->kMin + TRE_DINH_DUONG) {
+      bomKChay = false;
+    }
   }
   
   animateServo(bomKChay, viTriServoBomK, huongServoBomK, kenhBomK);
-  
-  if (bomKChay) {
-    offsetK += TOC_DO_TANG_DINH_DUONG;
-  } else {
-    if (offsetK > 0) offsetK -= TOC_DO_GIAM_DINH_DUONG;
-  }
 }
 
 void PlantZone::dieuKhienBomDinhDuong() {
-  if (!cheTuDong) return;
-  
-  if (ec < cauHinh->ecMin) {
-    bomDinhDuongChay = true;
-  } else if (ec > cauHinh->ecMax - TRE_EC) {
-    bomDinhDuongChay = false;
+  if (cheTuDong) {
+    if (ec < cauHinh->ecMin) {
+      bomDinhDuongChay = true;
+    } else if (ec > cauHinh->ecMax - TRE_EC) {
+      bomDinhDuongChay = false;
+    }
   }
   
   animateServo(bomDinhDuongChay, viTriServoBomDinhDuong, huongServoBomDinhDuong, kenhBomDinhDuong);
-  
-  if (bomDinhDuongChay) {
-    offsetEC += TOC_DO_TANG_EC;
-  } else {
-    if (offsetEC > 0) offsetEC -= TOC_DO_GIAM_EC;
-  }
 }
 
 void PlantZone::kiemTraCanhBao() {
@@ -513,6 +487,12 @@ void PlantZone::kiemTraCanhBao() {
 
 
 void PlantZone::dieuKhienThietBi() {
+  // Kiem tra cauHinh da duoc set chua
+  if (!cauHinh) {
+    Serial.printf("Vung %d: Chua co cau hinh cay!\n", maVung + 1);
+    return;
+  }
+  
   kiemTraCanhBao();
   dieuKhienQuat();
   dieuKhienSuoi();
@@ -528,6 +508,7 @@ void PlantZone::dieuKhienThietBi() {
   // Cap nhat LED mot lan moi vong lap
   vongLed->show();
 }
+
 
 void PlantZone::capNhatChuong() {
   static bool trangThaiChuong = false;
@@ -549,6 +530,32 @@ void PlantZone::capNhatChuong() {
       noTone(pinChuong);
       trangThaiChuong = false;
     }
+  }
+}
+
+void PlantZone::setCheTuDong(bool batTuDong) {
+  cheTuDong = batTuDong;
+  // Khi tat che do tu dong, tat tat ca thiet bi ngay lap tuc
+  if (!cheTuDong) {
+    quatChay = false;
+    suoiChay = false;
+    phunSuongChay = false;
+    denChay = false;
+    bomNuocChay = false;
+    bomNChay = false;
+    bomPChay = false;
+    bomKChay = false;
+    bomDinhDuongChay = false;
+    
+    // Cap nhat ngay trang thai cung (Hardware)
+    pwm->setPWM(kenhQuat, 0, 375);
+    pwm->setPWM(kenhBomNuoc, 0, 375);
+    pwm->setPWM(kenhBomN, 0, 375);
+    pwm->setPWM(kenhBomP, 0, 375);
+    pwm->setPWM(kenhBomK, 0, 375);
+    pwm->setPWM(kenhBomDinhDuong, 0, 375);
+    datMauVongLed(0, 36, false, 0, 0, 0); // Tat tat ca LED
+    vongLed->show();
   }
 }
 
@@ -586,6 +593,24 @@ void PlantZone::batTatBomNuoc(bool bat) {
   pwm->setPWM(kenhBomNuoc, 0, bat ? 400 : 375);
 }
 
+void PlantZone::batTatBomN(bool bat) {
+  if (cheTuDong) return;
+  bomNChay = bat;
+  pwm->setPWM(kenhBomN, 0, bat ? 400 : 375);
+}
+
+void PlantZone::batTatBomP(bool bat) {
+  if (cheTuDong) return;
+  bomPChay = bat;
+  pwm->setPWM(kenhBomP, 0, bat ? 400 : 375);
+}
+
+void PlantZone::batTatBomK(bool bat) {
+  if (cheTuDong) return;
+  bomKChay = bat;
+  pwm->setPWM(kenhBomK, 0, bat ? 400 : 375);
+}
+
 void PlantZone::batTatBomDinhDuong(bool bat) {
   if (cheTuDong) return;
   bomDinhDuongChay = bat;
@@ -596,6 +621,22 @@ void PlantZone::batTatBomDinhDuong(bool bat) {
 
 void PlantZone::capNhatManHinh(int yOffset) {
   if (!tft) return;
+  
+  // Neu chua co cau hinh, hien thi thong bao cho va thong tin DEBUG
+  if (!cauHinh) {
+    if (millis() - lanCapNhatTFT < 1000) return;
+    lanCapNhatTFT = millis();
+    
+    tft->fillRect(0, yOffset, 240, 24, TFT_RED);
+    tft->setTextColor(TFT_WHITE, TFT_RED);
+    tft->setTextSize(2);
+    char msg[30];
+    sprintf(msg, "VUNG %d: DANG CHO...", maVung + 1);
+    tft->drawString(msg, 5, yOffset + 4);
+    return;
+  }
+
+
   
   char buffer[50];
   
@@ -608,16 +649,20 @@ void PlantZone::capNhatManHinh(int yOffset) {
   tft->setTextColor(TFT_WHITE, TFT_DARKGREY);
   tft->setTextFont(1);
   tft->setTextSize(2);
+  
   sprintf(buffer, "VUNG %d: %s", maVung + 1, cauHinh->ten);
   tft->drawString(buffer, 5, yOffset + 4);
+
+
   
   int y = yOffset + 30;
   int chieuCaoDong = 18;
   
   // Nhiet do - Chi ve lai neu thay doi dang ke
   if (abs(nhietDo - hienThiNhietDoTruoc) > 0.1f) {
-    tft->setTextColor(TFT_YELLOW, TFT_BLACK);
-    sprintf(buffer, "Nhiet do: %.1f do C   ", nhietDo);
+    bool warning = (nhietDo < cauHinh->nhietDoMin || nhietDo > cauHinh->nhietDoMax);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "Nhiet do: %.1f do C     ", nhietDo);
     tft->drawString(buffer, 5, y);
     hienThiNhietDoTruoc = nhietDo;
   }
@@ -625,8 +670,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // Do am khong khi
   y += chieuCaoDong;
   if (abs(doAmKK - hienThiDoAmKKTruoc) > 0.5f) {
-    tft->setTextColor(TFT_BLUE, TFT_BLACK);
-    sprintf(buffer, "Do am KK: %.0f %%      ", doAmKK);
+    bool warning = (doAmKK < cauHinh->doAmKKMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "Do am KK: %.0f %%        ", doAmKK);
     tft->drawString(buffer, 5, y);
     hienThiDoAmKKTruoc = doAmKK;
   }
@@ -634,8 +680,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // Anh sang
   y += chieuCaoDong;
   if (abs(anhSang - hienThiAnhSangTruoc) > 1) {
-    tft->setTextColor(TFT_WHITE, TFT_BLACK);
-    sprintf(buffer, "Anh sang: %d %%       ", anhSang);
+    bool warning = (anhSang < cauHinh->anhSangMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "Anh sang: %d %%         ", anhSang);
     tft->drawString(buffer, 5, y);
     hienThiAnhSangTruoc = anhSang;
   }
@@ -643,8 +690,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // Do am dat
   y += chieuCaoDong;
   if (abs(doAmDat - hienThiDoAmDatTruoc) > 1) {
-    tft->setTextColor(TFT_CYAN, TFT_BLACK);
-    sprintf(buffer, "Do am dat: %d %%      ", doAmDat);
+    bool warning = (doAmDat < cauHinh->doAmDatMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "Do am dat: %d %%        ", doAmDat);
     tft->drawString(buffer, 5, y);
     hienThiDoAmDatTruoc = doAmDat;
   }
@@ -652,8 +700,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // pH dat
   y += chieuCaoDong;
   if (abs(phDat - hienThiPHTruoc) > 0.1f) {
-    tft->setTextColor(TFT_GREEN, TFT_BLACK);
-    sprintf(buffer, "pH dat: %.1f         ", phDat);
+    bool warning = (phDat < cauHinh->phMin || phDat > cauHinh->phMax);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "pH dat: %.1f            ", phDat);
     tft->drawString(buffer, 5, y);
     hienThiPHTruoc = phDat;
   }
@@ -661,8 +710,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // N
   y += chieuCaoDong;
   if (n != hienThiNTruoc) {
-    tft->setTextColor(TFT_MAGENTA, TFT_BLACK);
-    sprintf(buffer, "N: %d mg/kg          ", n);
+    bool warning = (n < cauHinh->nMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "N: %d mg/kg             ", n);
     tft->drawString(buffer, 5, y);
     hienThiNTruoc = n;
   }
@@ -670,8 +720,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // P
   y += chieuCaoDong;
   if (p != hienThiPTruoc) {
-    tft->setTextColor(TFT_RED, TFT_BLACK);
-    sprintf(buffer, "P: %d mg/kg          ", p);
+    bool warning = (p < cauHinh->pMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "P: %d mg/kg             ", p);
     tft->drawString(buffer, 5, y);
     hienThiPTruoc = p;
   }
@@ -679,8 +730,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // K
   y += chieuCaoDong;
   if (k != hienThiKTruoc) {
-    tft->setTextColor(TFT_PINK, TFT_BLACK);
-    sprintf(buffer, "K: %d mg/kg          ", k);
+    bool warning = (k < cauHinh->kMin);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "K: %d mg/kg             ", k);
     tft->drawString(buffer, 5, y);
     hienThiKTruoc = k;
   }
@@ -688,8 +740,9 @@ void PlantZone::capNhatManHinh(int yOffset) {
   // EC
   y += chieuCaoDong;
   if (abs(ec - hienThiECTruoc) > 0.05f) {
-    tft->setTextColor(TFT_ORANGE, TFT_BLACK);
-    sprintf(buffer, "EC: %.2f mS/cm       ", ec);
+    bool warning = (ec < cauHinh->ecMin || ec > cauHinh->ecMax);
+    tft->setTextColor(warning ? TFT_RED : TFT_WHITE, TFT_BLACK);
+    sprintf(buffer, "EC: %.2f mS/cm          ", ec);
     tft->drawString(buffer, 5, y);
     hienThiECTruoc = ec;
   }
@@ -705,12 +758,68 @@ void PlantZone::capNhatManHinh(int yOffset) {
     }
     hienThiCanhBaoTruoc = canhBao;
   }
+  
+  // --- SEPARATOR ---
+  y += chieuCaoDong + 4;
+  tft->setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft->drawString("-------------------------", 5, y);
+  
+  // --- BOTTOM SECTION: IDEAL PARAMETERS ---
+  y += 15;
+  tft->setTextSize(1);
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  tft->drawString("NGUONG LY TUONG (IDEAL) ", 5, y);
+  
+  y += 15;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "Nhiet do  : %.0f - %.0f C", cauHinh->nhietDoMin, cauHinh->nhietDoMax);
+  tft->drawString(buffer, 15, y);
+  
+  y += 12;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "Do am dat : > %d %%", cauHinh->doAmDatMin);
+  tft->drawString(buffer, 15, y);
+  
+  y += 12;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "pH Dat    : %.1f - %.1f", cauHinh->phMin, cauHinh->phMax);
+  tft->drawString(buffer, 15, y);
+
+  y += 12;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "Chi so EC : %.1f - %.1f", cauHinh->ecMin, cauHinh->ecMax);
+  tft->drawString(buffer, 15, y);
+  
+  y += 12;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "N (Min)   : %d", cauHinh->nMin);
+  tft->drawString(buffer, 15, y);
+  
+  y += 11;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "P (Min)   : %d", cauHinh->pMin);
+  tft->drawString(buffer, 15, y);
+  
+  y += 11;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "K (Min)   : %d", cauHinh->kMin);
+  tft->drawString(buffer, 15, y);
+
+  y += 11;
+  tft->setTextColor(TFT_WHITE, TFT_BLACK);
+  sprintf(buffer, "Anh sang  : > %d %%", cauHinh->anhSangMin);
+  tft->drawString(buffer, 15, y);
+
 }
+
+
+
 
 // ==================== CAP NHAT CHINH ====================
 
 void PlantZone::update(int displayYOffset) {
   docCamBien();
+  moPhongVatLy();
   dieuKhienThietBi();
   capNhatManHinh(displayYOffset);
 }

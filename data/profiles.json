@@ -1,0 +1,52 @@
+{
+  "profiles": [
+    {
+      "id": "xa_lach",
+      "ten": "XA LACH",
+      "nhietDoMax": 28.0,
+      "nhietDoMin": 15.0,
+      "doAmKKMin": 60,
+      "anhSangMin": 30,
+      "doAmDatMin": 80,
+      "phMin": 5.5,
+      "phMax": 7.0,
+      "nMin": 300,
+      "pMin": 200,
+      "kMin": 200,
+      "ecMin": 1.2,
+      "ecMax": 2.0
+    },
+    {
+      "id": "dau_tay",
+      "ten": "DAU TAY",
+      "nhietDoMax": 24.0,
+      "nhietDoMin": 12.0,
+      "doAmKKMin": 65,
+      "anhSangMin": 35,
+      "doAmDatMin": 65,
+      "phMin": 5.5,
+      "phMax": 6.5,
+      "nMin": 250,
+      "pMin": 250,
+      "kMin": 300,
+      "ecMin": 1.0,
+      "ecMax": 1.8
+    },
+    {
+      "id": "ca_chua",
+      "ten": "CA CHUA",
+      "nhietDoMax": 30.0,
+      "nhietDoMin": 18.0,
+      "doAmKKMin": 55,
+      "anhSangMin": 40,
+      "doAmDatMin": 70,
+      "phMin": 6.0,
+      "phMax": 7.0,
+      "nMin": 200,
+      "pMin": 250,
+      "kMin": 350,
+      "ecMin": 2.0,
+      "ecMax": 3.0
+    }
+  ]
+}
