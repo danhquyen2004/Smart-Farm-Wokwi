@@ -206,11 +206,8 @@ void TaskIoT(void * pvParameters) {
 
 // ==================== ERa VIRTUAL PIN HANDLERS ====================
 
-// Zone 1 Handlers
-ERA_WRITE(V12) { // Auto Mode
-    bool val = param.getInt();
-    if (zone1) zone1->setCheTuDong(val);
-}
+// Zone 1 Handlers (Thresholds V40-V51)
+ERA_WRITE(V12) { bool val = param.getInt(); if (zone1) zone1->setCheTuDong(val); }
 ERA_WRITE(V9)  { if (zone1) zone1->batTatQuat(param.getInt()); }
 ERA_WRITE(V10) { if (zone1) zone1->batTatBomNuoc(param.getInt()); }
 ERA_WRITE(V11) { if (zone1) zone1->batTatDen(param.getInt()); }
@@ -221,30 +218,22 @@ ERA_WRITE(V15) { if (zone1) zone1->batTatBomN(param.getInt()); }
 ERA_WRITE(V16) { if (zone1) zone1->batTatBomP(param.getInt()); }
 ERA_WRITE(V17) { if (zone1) zone1->batTatBomK(param.getInt()); }
 
-ERA_WRITE(V40) { // Temp Max
-    if (zone1 && zone1->getCauHinh()) {
-        zone1->getCauHinh()->nhietDoMax = param.getFloat();
-        profileManager.saveProfiles();
-    }
-}
-ERA_WRITE(V41) { // Temp Min
-    if (zone1 && zone1->getCauHinh()) {
-        zone1->getCauHinh()->nhietDoMin = param.getFloat();
-        profileManager.saveProfiles();
-    }
-}
-ERA_WRITE(V43) { // Soil Moist Min
-    if (zone1 && zone1->getCauHinh()) {
-        zone1->getCauHinh()->doAmDatMin = param.getInt();
-        profileManager.saveProfiles();
-    }
-}
+ERA_WRITE(V40) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->nhietDoMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V41) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->nhietDoMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V42) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->doAmKKMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V43) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->doAmDatMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V44) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->anhSangMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V45) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->phMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V46) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->phMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V47) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->nMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V48) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->pMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V49) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->kMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V50) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->ecMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V51) { if (zone1 && zone1->getCauHinh()) { zone1->getCauHinh()->ecMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V52) { if (zone1 && zone1->getCauHinh()) { strncpy(zone1->getCauHinh()->ten, param.getString(), 29); zone1->getCauHinh()->ten[29] = '\0'; profileManager.saveProfiles(); } }
 
-// Zone 2 Handlers
-ERA_WRITE(V32) { // Auto Mode
-    bool val = param.getInt();
-    if (zone2) zone2->setCheTuDong(val);
-}
+// Zone 2 Handlers (Thresholds V60-V71)
+ERA_WRITE(V32) { bool val = param.getInt(); if (zone2) zone2->setCheTuDong(val); }
 ERA_WRITE(V29) { if (zone2) zone2->batTatQuat(param.getInt()); }
 ERA_WRITE(V30) { if (zone2) zone2->batTatBomNuoc(param.getInt()); }
 ERA_WRITE(V31) { if (zone2) zone2->batTatDen(param.getInt()); }
@@ -255,36 +244,31 @@ ERA_WRITE(V35) { if (zone2) zone2->batTatBomN(param.getInt()); }
 ERA_WRITE(V36) { if (zone2) zone2->batTatBomP(param.getInt()); }
 ERA_WRITE(V37) { if (zone2) zone2->batTatBomK(param.getInt()); }
 
-ERA_WRITE(V60) { // Temp Max
-    if (zone2 && zone2->getCauHinh()) {
-        zone2->getCauHinh()->nhietDoMax = param.getFloat();
-        profileManager.saveProfiles();
-    }
-}
-ERA_WRITE(V61) { // Temp Min
-    if (zone2 && zone2->getCauHinh()) {
-        zone2->getCauHinh()->nhietDoMin = param.getFloat();
-        profileManager.saveProfiles();
-    }
-}
-ERA_WRITE(V63) { // Soil Moist Min
-    if (zone2 && zone2->getCauHinh()) {
-        zone2->getCauHinh()->doAmDatMin = param.getInt();
-        profileManager.saveProfiles();
-    }
-}
+ERA_WRITE(V60) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->nhietDoMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V61) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->nhietDoMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V62) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->doAmKKMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V63) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->doAmDatMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V64) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->anhSangMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V65) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->phMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V66) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->phMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V67) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->nMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V68) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->pMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V69) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->kMin = param.getInt(); profileManager.saveProfiles(); } }
+ERA_WRITE(V70) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->ecMin = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V71) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->ecMax = param.getFloat(); profileManager.saveProfiles(); } }
+ERA_WRITE(V72) { if (zone2 && zone2->getCauHinh()) { strncpy(zone2->getCauHinh()->ten, param.getString(), 29); zone2->getCauHinh()->ten[29] = '\0'; profileManager.saveProfiles(); } }
 
 // Push data to ERa - Staggered implementation to prevent lag
 void syncERa() {
     static unsigned long lastStep = 0;
     static int step = 0;
-    const int totalSteps = 46; 
+    const int totalSteps = 66; 
     
     if (millis() - lastStep < 150) return; 
     lastStep = millis();
 
     switch (step) {
-        // --- ZONE 1 (0-19) ---
+        // --- ZONE 1 SENSORS (0-8) ---
         case 0: if (zone1) ERa.virtualWrite(V0, zone1->getNhietDo()); break;
         case 1: if (zone1) ERa.virtualWrite(V1, zone1->getDoAmKK()); break;
         case 2: if (zone1) ERa.virtualWrite(V2, zone1->getAnhSang()); break;
@@ -294,6 +278,8 @@ void syncERa() {
         case 6: if (zone1) ERa.virtualWrite(V6, zone1->getP()); break;
         case 7: if (zone1) ERa.virtualWrite(V7, zone1->getK()); break;
         case 8: if (zone1) ERa.virtualWrite(V8, zone1->getEC()); break;
+
+        // --- ZONE 1 DEVICES (9-19) ---
         case 9:  if (zone1) ERa.virtualWrite(V9, zone1->laQuatChay()); break;
         case 10: if (zone1) ERa.virtualWrite(V10, zone1->laBomNuocChay()); break;
         case 11: if (zone1) ERa.virtualWrite(V11, zone1->laDenChay()); break;
@@ -306,7 +292,7 @@ void syncERa() {
         case 18: if (zone1) ERa.virtualWrite(V18, zone1->laSuoiChay()); break;
         case 19: if (zone1) ERa.virtualWrite(V19, zone1->laPhunSuongChay()); break;
 
-        // --- ZONE 2 (20-39) ---
+        // --- ZONE 2 SENSORS (20-28) ---
         case 20: if (zone2) ERa.virtualWrite(V20, zone2->getNhietDo()); break;
         case 21: if (zone2) ERa.virtualWrite(V21, zone2->getDoAmKK()); break;
         case 22: if (zone2) ERa.virtualWrite(V22, zone2->getAnhSang()); break;
@@ -316,6 +302,8 @@ void syncERa() {
         case 26: if (zone2) ERa.virtualWrite(V26, zone2->getP()); break;
         case 27: if (zone2) ERa.virtualWrite(V27, zone2->getK()); break;
         case 28: if (zone2) ERa.virtualWrite(V28, zone2->getEC()); break;
+
+        // --- ZONE 2 DEVICES (29-39) ---
         case 29: if (zone2) ERa.virtualWrite(V29, zone2->laQuatChay()); break;
         case 30: if (zone2) ERa.virtualWrite(V30, zone2->laBomNuocChay()); break;
         case 31: if (zone2) ERa.virtualWrite(V31, zone2->laDenChay()); break;
@@ -328,19 +316,40 @@ void syncERa() {
         case 38: if (zone2) ERa.virtualWrite(V38, zone2->laSuoiChay()); break;
         case 39: if (zone2) ERa.virtualWrite(V39, zone2->laPhunSuongChay()); break;
 
-        // --- THRESHOLDS (40-45) ---
+        // --- ZONE 1 THRESHOLDS (40-52) ---
         case 40: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V40, zone1->getCauHinh()->nhietDoMax); break;
         case 41: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V41, zone1->getCauHinh()->nhietDoMin); break;
-        case 42: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V43, zone1->getCauHinh()->doAmDatMin); break;
-        case 43: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V60, zone2->getCauHinh()->nhietDoMax); break;
-        case 44: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V61, zone2->getCauHinh()->nhietDoMin); break;
-        case 45: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V63, zone2->getCauHinh()->doAmDatMin); break;
+        case 42: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V42, zone1->getCauHinh()->doAmKKMin); break;
+        case 43: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V43, zone1->getCauHinh()->doAmDatMin); break;
+        case 44: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V44, zone1->getCauHinh()->anhSangMin); break;
+        case 45: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V45, zone1->getCauHinh()->phMin); break;
+        case 46: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V46, zone1->getCauHinh()->phMax); break;
+        case 47: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V47, zone1->getCauHinh()->nMin); break;
+        case 48: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V48, zone1->getCauHinh()->pMin); break;
+        case 49: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V49, zone1->getCauHinh()->kMin); break;
+        case 50: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V50, zone1->getCauHinh()->ecMin); break;
+        case 51: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V51, zone1->getCauHinh()->ecMax); break;
+        case 52: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V52, zone1->getCauHinh()->ten); break;
+
+        // --- ZONE 2 THRESHOLDS (53-65) ---
+        case 53: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V60, zone2->getCauHinh()->nhietDoMax); break;
+        case 54: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V61, zone2->getCauHinh()->nhietDoMin); break;
+        case 55: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V62, zone2->getCauHinh()->doAmKKMin); break;
+        case 56: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V63, zone2->getCauHinh()->doAmDatMin); break;
+        case 57: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V64, zone2->getCauHinh()->anhSangMin); break;
+        case 58: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V65, zone2->getCauHinh()->phMin); break;
+        case 59: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V66, zone2->getCauHinh()->phMax); break;
+        case 60: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V67, zone2->getCauHinh()->nMin); break;
+        case 61: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V68, zone2->getCauHinh()->pMin); break;
+        case 62: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V69, zone2->getCauHinh()->kMin); break;
+        case 63: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V70, zone2->getCauHinh()->ecMin); break;
+        case 64: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V71, zone2->getCauHinh()->ecMax); break;
+        case 65: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V72, zone2->getCauHinh()->ten); break;
     }
 
     step++;
     if (step >= totalSteps) step = 0;
 }
-
 
 // ==================== MAIN LOOP ====================
 
