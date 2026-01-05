@@ -258,97 +258,102 @@ ERA_WRITE(V70) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->ecMin 
 ERA_WRITE(V71) { if (zone2 && zone2->getCauHinh()) { zone2->getCauHinh()->ecMax = param.getFloat(); profileManager.saveProfiles(); } }
 ERA_WRITE(V72) { if (zone2 && zone2->getCauHinh()) { strncpy(zone2->getCauHinh()->ten, param.getString(), 29); zone2->getCauHinh()->ten[29] = '\0'; profileManager.saveProfiles(); } }
 
-// Push data to ERa - Staggered implementation to prevent lag
+// Push data to ERa - Burst Mode for Realtime experience
 void syncERa() {
-    static unsigned long lastStep = 0;
-    static int step = 0;
-    const int totalSteps = 66; 
-    
-    if (millis() - lastStep < 150) return; 
-    lastStep = millis();
+    static unsigned long lastFastSync = 0;
+    static unsigned long lastSlowSync = 0;
 
-    switch (step) {
-        // --- ZONE 1 SENSORS (0-8) ---
-        case 0: if (zone1) ERa.virtualWrite(V0, zone1->getNhietDo()); break;
-        case 1: if (zone1) ERa.virtualWrite(V1, zone1->getDoAmKK()); break;
-        case 2: if (zone1) ERa.virtualWrite(V2, zone1->getAnhSang()); break;
-        case 3: if (zone1) ERa.virtualWrite(V3, zone1->getDoAmDat()); break;
-        case 4: if (zone1) ERa.virtualWrite(V4, zone1->getPHDat()); break;
-        case 5: if (zone1) ERa.virtualWrite(V5, zone1->getN()); break;
-        case 6: if (zone1) ERa.virtualWrite(V6, zone1->getP()); break;
-        case 7: if (zone1) ERa.virtualWrite(V7, zone1->getK()); break;
-        case 8: if (zone1) ERa.virtualWrite(V8, zone1->getEC()); break;
+    // 1. NHOM REAL-TIME (Cam bien & Thiet bi) - Cap nhat moi 500ms
+    if (millis() - lastFastSync >= 500) {
+        lastFastSync = millis();
+        
+        if (zone1) {
+            // Zone 1 Sensors
+            ERa.virtualWrite(V0, zone1->getNhietDo());
+            ERa.virtualWrite(V1, zone1->getDoAmKK());
+            ERa.virtualWrite(V2, zone1->getAnhSang());
+            ERa.virtualWrite(V3, zone1->getDoAmDat());
+            ERa.virtualWrite(V4, zone1->getPHDat());
+            ERa.virtualWrite(V5, zone1->getN());
+            ERa.virtualWrite(V6, zone1->getP());
+            ERa.virtualWrite(V7, zone1->getK());
+            ERa.virtualWrite(V8, zone1->getEC());
+            // Zone 1 Actuators
+            ERa.virtualWrite(V9, zone1->laQuatChay());
+            ERa.virtualWrite(V10, zone1->laBomNuocChay());
+            ERa.virtualWrite(V11, zone1->laDenChay());
+            ERa.virtualWrite(V12, zone1->getCheTuDong());
+            ERa.virtualWrite(V13, zone1->laCanhBao());
+            ERa.virtualWrite(V14, zone1->laBomDinhDuongChay());
+            ERa.virtualWrite(V15, zone1->laBomNChay());
+            ERa.virtualWrite(V16, zone1->laBomPChay());
+            ERa.virtualWrite(V17, zone1->laBomKChay());
+            ERa.virtualWrite(V18, zone1->laSuoiChay());
+            ERa.virtualWrite(V19, zone1->laPhunSuongChay());
+        }
 
-        // --- ZONE 1 DEVICES (9-19) ---
-        case 9:  if (zone1) ERa.virtualWrite(V9, zone1->laQuatChay()); break;
-        case 10: if (zone1) ERa.virtualWrite(V10, zone1->laBomNuocChay()); break;
-        case 11: if (zone1) ERa.virtualWrite(V11, zone1->laDenChay()); break;
-        case 12: if (zone1) ERa.virtualWrite(V12, zone1->getCheTuDong()); break;
-        case 13: if (zone1) ERa.virtualWrite(V13, zone1->laCanhBao()); break;
-        case 14: if (zone1) ERa.virtualWrite(V14, zone1->laBomDinhDuongChay()); break;
-        case 15: if (zone1) ERa.virtualWrite(V15, zone1->laBomNChay()); break;
-        case 16: if (zone1) ERa.virtualWrite(V16, zone1->laBomPChay()); break;
-        case 17: if (zone1) ERa.virtualWrite(V17, zone1->laBomKChay()); break;
-        case 18: if (zone1) ERa.virtualWrite(V18, zone1->laSuoiChay()); break;
-        case 19: if (zone1) ERa.virtualWrite(V19, zone1->laPhunSuongChay()); break;
-
-        // --- ZONE 2 SENSORS (20-28) ---
-        case 20: if (zone2) ERa.virtualWrite(V20, zone2->getNhietDo()); break;
-        case 21: if (zone2) ERa.virtualWrite(V21, zone2->getDoAmKK()); break;
-        case 22: if (zone2) ERa.virtualWrite(V22, zone2->getAnhSang()); break;
-        case 23: if (zone2) ERa.virtualWrite(V23, zone2->getDoAmDat()); break;
-        case 24: if (zone2) ERa.virtualWrite(V24, zone2->getPHDat()); break;
-        case 25: if (zone2) ERa.virtualWrite(V25, zone2->getN()); break;
-        case 26: if (zone2) ERa.virtualWrite(V26, zone2->getP()); break;
-        case 27: if (zone2) ERa.virtualWrite(V27, zone2->getK()); break;
-        case 28: if (zone2) ERa.virtualWrite(V28, zone2->getEC()); break;
-
-        // --- ZONE 2 DEVICES (29-39) ---
-        case 29: if (zone2) ERa.virtualWrite(V29, zone2->laQuatChay()); break;
-        case 30: if (zone2) ERa.virtualWrite(V30, zone2->laBomNuocChay()); break;
-        case 31: if (zone2) ERa.virtualWrite(V31, zone2->laDenChay()); break;
-        case 32: if (zone2) ERa.virtualWrite(V32, zone2->getCheTuDong()); break;
-        case 33: if (zone2) ERa.virtualWrite(V33, zone2->laCanhBao()); break;
-        case 34: if (zone2) ERa.virtualWrite(V34, zone2->laBomDinhDuongChay()); break;
-        case 35: if (zone2) ERa.virtualWrite(V35, zone2->laBomNChay()); break;
-        case 36: if (zone2) ERa.virtualWrite(V36, zone2->laBomPChay()); break;
-        case 37: if (zone2) ERa.virtualWrite(V37, zone2->laBomKChay()); break;
-        case 38: if (zone2) ERa.virtualWrite(V38, zone2->laSuoiChay()); break;
-        case 39: if (zone2) ERa.virtualWrite(V39, zone2->laPhunSuongChay()); break;
-
-        // --- ZONE 1 THRESHOLDS (40-52) ---
-        case 40: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V40, zone1->getCauHinh()->nhietDoMax); break;
-        case 41: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V41, zone1->getCauHinh()->nhietDoMin); break;
-        case 42: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V42, zone1->getCauHinh()->doAmKKMin); break;
-        case 43: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V43, zone1->getCauHinh()->doAmDatMin); break;
-        case 44: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V44, zone1->getCauHinh()->anhSangMin); break;
-        case 45: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V45, zone1->getCauHinh()->phMin); break;
-        case 46: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V46, zone1->getCauHinh()->phMax); break;
-        case 47: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V47, zone1->getCauHinh()->nMin); break;
-        case 48: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V48, zone1->getCauHinh()->pMin); break;
-        case 49: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V49, zone1->getCauHinh()->kMin); break;
-        case 50: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V50, zone1->getCauHinh()->ecMin); break;
-        case 51: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V51, zone1->getCauHinh()->ecMax); break;
-        case 52: if (zone1 && zone1->getCauHinh()) ERa.virtualWrite(V52, zone1->getCauHinh()->ten); break;
-
-        // --- ZONE 2 THRESHOLDS (53-65) ---
-        case 53: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V60, zone2->getCauHinh()->nhietDoMax); break;
-        case 54: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V61, zone2->getCauHinh()->nhietDoMin); break;
-        case 55: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V62, zone2->getCauHinh()->doAmKKMin); break;
-        case 56: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V63, zone2->getCauHinh()->doAmDatMin); break;
-        case 57: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V64, zone2->getCauHinh()->anhSangMin); break;
-        case 58: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V65, zone2->getCauHinh()->phMin); break;
-        case 59: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V66, zone2->getCauHinh()->phMax); break;
-        case 60: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V67, zone2->getCauHinh()->nMin); break;
-        case 61: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V68, zone2->getCauHinh()->pMin); break;
-        case 62: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V69, zone2->getCauHinh()->kMin); break;
-        case 63: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V70, zone2->getCauHinh()->ecMin); break;
-        case 64: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V71, zone2->getCauHinh()->ecMax); break;
-        case 65: if (zone2 && zone2->getCauHinh()) ERa.virtualWrite(V72, zone2->getCauHinh()->ten); break;
+        if (zone2) {
+            // Zone 2 Sensors
+            ERa.virtualWrite(V20, zone2->getNhietDo());
+            ERa.virtualWrite(V21, zone2->getDoAmKK());
+            ERa.virtualWrite(V22, zone2->getAnhSang());
+            ERa.virtualWrite(V23, zone2->getDoAmDat());
+            ERa.virtualWrite(V24, zone2->getPHDat());
+            ERa.virtualWrite(V25, zone2->getN());
+            ERa.virtualWrite(V26, zone2->getP());
+            ERa.virtualWrite(V27, zone2->getK());
+            ERa.virtualWrite(V28, zone2->getEC());
+            // Zone 2 Actuators
+            ERa.virtualWrite(V29, zone2->laQuatChay());
+            ERa.virtualWrite(V30, zone2->laBomNuocChay());
+            ERa.virtualWrite(V31, zone2->laDenChay());
+            ERa.virtualWrite(V32, zone2->getCheTuDong());
+            ERa.virtualWrite(V33, zone2->laCanhBao());
+            ERa.virtualWrite(V34, zone2->laBomDinhDuongChay());
+            ERa.virtualWrite(V35, zone2->laBomNChay());
+            ERa.virtualWrite(V36, zone2->laBomPChay());
+            ERa.virtualWrite(V37, zone2->laBomKChay());
+            ERa.virtualWrite(V38, zone2->laSuoiChay());
+            ERa.virtualWrite(V39, zone2->laPhunSuongChay());
+        }
     }
 
-    step++;
-    if (step >= totalSteps) step = 0;
+    // 2. NHOM CAU HINH (Nguong ly tuong) - Cap nhat moi 5 giay (5000ms)
+    if (millis() - lastSlowSync >= 5000) {
+        lastSlowSync = millis();
+        
+        if (zone1 && zone1->getCauHinh()) {
+            PlantProfile* p = zone1->getCauHinh();
+            ERa.virtualWrite(V40, p->nhietDoMax);
+            ERa.virtualWrite(V41, p->nhietDoMin);
+            ERa.virtualWrite(V42, p->doAmKKMin);
+            ERa.virtualWrite(V43, p->doAmDatMin);
+            ERa.virtualWrite(V44, p->anhSangMin);
+            ERa.virtualWrite(V45, p->phMin);
+            ERa.virtualWrite(V46, p->phMax);
+            ERa.virtualWrite(V47, p->nMin);
+            ERa.virtualWrite(V48, p->pMin);
+            ERa.virtualWrite(V50, p->ecMin);
+            ERa.virtualWrite(V51, p->ecMax);
+            ERa.virtualWrite(V52, p->ten);
+        }
+        
+        if (zone2 && zone2->getCauHinh()) {
+            PlantProfile* p = zone2->getCauHinh();
+            ERa.virtualWrite(V60, p->nhietDoMax);
+            ERa.virtualWrite(V61, p->nhietDoMin);
+            ERa.virtualWrite(V62, p->doAmKKMin);
+            ERa.virtualWrite(V63, p->doAmDatMin);
+            ERa.virtualWrite(V64, p->anhSangMin);
+            ERa.virtualWrite(V65, p->phMin);
+            ERa.virtualWrite(V66, p->phMax);
+            ERa.virtualWrite(V67, p->nMin);
+            ERa.virtualWrite(V68, p->pMin);
+            ERa.virtualWrite(V70, p->ecMin);
+            ERa.virtualWrite(V71, p->ecMax);
+            ERa.virtualWrite(V72, p->ten);
+        }
+    }
 }
 
 // ==================== MAIN LOOP ====================
